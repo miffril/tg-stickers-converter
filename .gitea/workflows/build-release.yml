@@ -33,22 +33,34 @@ jobs:
         GITEA_TOKEN: ${{ secrets.TOKEN }}
       shell: powershell
       run: |
-        dir
-        $tag = "${{ gitea.ref }}" -replace '^refs/tags/', ''
-        $fileName = ".\converter-$tag.zip"
-        $repo = "${{ gitea.repository }}"
-        $gitea_url = "${{ vars.URL }}"
-        $apiUrl = "$gitea_url/api/v1/repos/$repo/releases/tags/$tag/assets?name=$fileName"
+        $ref = "${{ gitea.ref }}"
+        $tag = $ref -replace '^refs/tags/', ''
 
-        echo $apiUrl
-        
-        if(-Not (Test-Path $fileName)) {
-            throw "Archive file $fileName not found!"
-        }
-        
-        $headers = @{
-          Authorization = "token $env:GITEA_TOKEN"
-          "Content-Type" = "application/zip"
-        }
+        $fileName = "converter-$tag.zip"
 
-        Invoke-WebRequest -Uri $apiUrl -Headers $headers -Method Post -InFile $fileName -UseBasicParsing
+        $repo = "${{ gitea.repository }}" # user/repo
+        $owner, $name = $repo -split '/'
+
+        echo "Repo $repo"
+        echo "Owner $owner"
+
+        # URL Gitea
+        $base = "${{ vars.URL }}"
+
+        $releaseInfo = Invoke-RestMethod -Headers @{ Authorization = "token $env:GITEA_TOKEN" } `
+          -Uri "$base/api/v1/repos/$repo/releases/tags/$tag" `
+          -Method Get
+
+        $releaseId = $releaseInfo.id
+
+        echo "Release ID $releaseId"
+
+        $apiUrl = "$base/api/v1/repos/$repo/releases/$releaseId/assets?name=$fileName"
+
+        echo "API URL $apiUrl"
+
+        Invoke-RestMethod -Uri $apiUrl `
+          -Headers @{ Authorization = "token $env:GITEA_TOKEN" } `
+          -Method Post `
+          -InFile $fileName `
+          -ContentType "multipart/form-data"
