@@ -33,7 +33,7 @@ jobs:
     - name: Upload to Release
       env:
         GITEA_TOKEN: ${{ secrets.TOKEN }}
-      shell: pwsh
+      shell: powershell
       run: |
         $tag = "${{ gitea.event.release.tag_name }}"
         $fileName = ".\converter-$tag.zip"
