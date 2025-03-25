@@ -26,8 +26,8 @@ jobs:
       shell: powershell
       run: |
         dir
-        dir ".\hostexecutor\bin\Release"
-        Compress-Archive -Path ".\hostexecutor\bin\Release" -DestinationPath "converter-$env:GITEA_REF_NAME.zip"
+        dir ".\bin\Release"
+        Compress-Archive -Path ".\bin\Release\*" -DestinationPath "converter-$env:GITEA_REF_NAME.zip"
 
     - name: Upload to Release
       env:
