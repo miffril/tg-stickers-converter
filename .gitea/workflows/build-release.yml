@@ -26,10 +26,7 @@ jobs:
       shell: powershell
       run: |
         $tag = "${{ gitea.ref }}" -replace '^refs/tags/', ''
-        $tag2 = "$env:GITEA_REF_NAME"
-        echo "Tag: $tag"
-        echo "Tag2: $tag2"
-        Compress-Archive -Path ".\bin\Release\*" -DestinationPath "converter-$env:GITEA_REF_NAME.zip"
+        Compress-Archive -Path ".\bin\Release\*" -DestinationPath "converter-$tag.zip"
 
     - name: Upload to Release
       env:
@@ -37,11 +34,13 @@ jobs:
       shell: powershell
       run: |
         dir
-        $tag = "$env:GITEA_REF_NAME"
+        $tag = "${{ gitea.ref }}" -replace '^refs/tags/', ''
         $fileName = ".\converter-$tag.zip"
         $repo = "${{ gitea.repository }}"
         $gitea_url = "${{ vars.URL }}"
         $apiUrl = "$gitea_url/api/v1/repos/$repo/releases/tags/$tag/assets?name=$fileName"
+
+        echo $apiUrl
         
         if(-Not (Test-Path $fileName)) {
             throw "Archive file $fileName not found!"
