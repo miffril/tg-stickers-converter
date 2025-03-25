@@ -1,0 +1,52 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.3.1
+
+    - name: Restore NuGet packages
+      run: nuget restore ${{ vars.SOLUTION }}
+
+    - name: Build Solution
+      run: msbuild.exe ${{ vars.SOLUTION }} /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFrameworkVersion=v4.7.2
+
+    - name: Create Zip Archive
+      run: |
+        $tag = "${{ gitea.event.release.tag_name }}"
+        $archiveName = ".\converter-$tag.zip"
+        mkdir release
+        xcopy .\ProjectName\bin\Release .\release /E /H /Y
+        powershell Compress-Archive -Path ".\release" -DestinationPath $archiveName
+
+    - name: Upload to Release
+      env:
+        GITEA_TOKEN: ${{ secrets.TOKEN }}
+      shell: pwsh
+      run: |
+        $tag = "${{ gitea.event.release.tag_name }}"
+        $fileName = ".\converter-$tag.zip"
+        $repo = "${{ gitea.repository }}"
+        $gitea_url = "${{ vars.URL }}"
+        $apiUrl = "$gitea_url/api/v1/repos/$repo/releases/tags/$tag/assets?name=$fileName"
+        
+        if(-Not (Test-Path $fileName)) {
+            throw "Archive file $fileName not found!"
+        }
+        
+        curl -X POST `
+          -H "Authorization: token $env:GITEA_TOKEN" `
+          -H "Content-Type: application/zip" `
+          --data-binary "@$fileName" `
+          $apiUrl
