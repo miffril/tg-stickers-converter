@@ -23,13 +23,15 @@ jobs:
       run: msbuild.exe ${{ vars.SOLUTION }} /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFrameworkVersion=v4.7.2
 
     - name: Create Zip Archive
+      shell: powershell
       run: |
         $tag = "$env:GITEA_REF_NAME"
         $archiveName = "converter-$tag.zip"
         mkdir release
-        xcopy .\hostexecutor\bin\Release\* .\release /E /H /Y
-        Compress-Archive -Path ".\release\*" -DestinationPath $archiveName
-      shell: powershell
+        $source = ".\hostexecutor\bin\Release\*"
+        $destination = ".\release"
+        xcopy "$source" "$destination" /E /H /Y
+        Compress-Archive -Path "$destination\*" -DestinationPath "$archiveName"
 
     - name: Upload to Release
       env:
