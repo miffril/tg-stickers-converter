@@ -41,9 +41,6 @@ jobs:
         $repo = "${{ gitea.repository }}" # user/repo
         $owner, $name = $repo -split '/'
 
-        echo "Repo $repo"
-        echo "Owner $owner"
-
         # URL Gitea
         $base = "${{ vars.URL }}"
 
@@ -53,14 +50,9 @@ jobs:
 
         $releaseId = $releaseInfo.id
 
-        echo "Release ID $releaseId"
-
         $apiUrl = "$base/api/v1/repos/$repo/releases/$releaseId/assets?name=$fileName"
 
-        echo "API URL $apiUrl"
-
-        Invoke-RestMethod -Uri $apiUrl `
-          -Headers @{ Authorization = "token $env:GITEA_TOKEN" } `
-          -Method Post `
-          -InFile $fileName `
-          -ContentType "multipart/form-data"
+        curl -s -X POST \
+          -H "Authorization: token $GITEA_TOKEN" \
+          -F "attachment=@$fileName" \
+          "$apiUrl"
