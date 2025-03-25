@@ -515,3 +515,5 @@ dkms.conf
 =======
 FodyWeavers.xsd
 >>>>>>> master
+
+.vscode/*
