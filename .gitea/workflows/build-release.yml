@@ -25,13 +25,7 @@ jobs:
     - name: Create Zip Archive
       shell: powershell
       run: |
-        $tag = "$env:GITEA_REF_NAME"
-        $archiveName = "converter-$tag.zip"
-        mkdir release
-        $source = ".\hostexecutor\bin\Release\*"
-        $destination = ".\release"
-        xcopy "$source" "$destination" /E /H /Y
-        Compress-Archive -Path "$destination\*" -DestinationPath "$archiveName"
+        Compress-Archive -Path ".\hostexecutor\bin\Release\*" -DestinationPath "converter-$env:GITEA_REF_NAME.zip"
 
     - name: Upload to Release
       env:
