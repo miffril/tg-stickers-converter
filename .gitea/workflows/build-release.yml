@@ -25,13 +25,16 @@ jobs:
     - name: Create Zip Archive
       shell: powershell
       run: |
-        Compress-Archive -Path ".\hostexecutor\bin\Release\*" -DestinationPath "converter-$env:GITEA_REF_NAME.zip"
+        dir
+        dir ".\hostexecutor\bin\Release"
+        Compress-Archive -Path ".\hostexecutor\bin\Release" -DestinationPath "converter-$env:GITEA_REF_NAME.zip"
 
     - name: Upload to Release
       env:
         GITEA_TOKEN: ${{ secrets.TOKEN }}
       shell: powershell
       run: |
+        dir
         $tag = "$env:GITEA_REF_NAME"
         $fileName = ".\converter-$tag.zip"
         $repo = "${{ gitea.repository }}"
