@@ -52,7 +52,4 @@ jobs:
 
         $apiUrl = "$base/api/v1/repos/$repo/releases/$releaseId/assets?name=$fileName"
 
-        curl -s -X POST \
-          -H "Authorization: token $GITEA_TOKEN" \
-          -F "attachment=@$fileName" \
-          "$apiUrl"
+        curl -s -X POST -H "Authorization: token $GITEA_TOKEN" -F "attachment=@$fileName" $apiUrl
