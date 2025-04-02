@@ -31,15 +31,20 @@ GifToWebM.exe [options]
 | `-b`, `--border`   | Set outline for image (default: disabled)         |
 | `--border-size`   | Outline thickness in pixels (default: `2`)         |
 | `--border-color`   | Outline color hex (default: `#FFFFFF`)         |
-| `-h`, `--help`       | Show usage help                          |
+| `--fps`			| Set FPS for output video (default: `10`). Autocalculated for gifs         |
+| `-h`, `--help`       | Show help                          |
 
 ## Example
 
+This command will convert `animation.gif` to `result.webm`, increasing the CRF by 5 on each iteration until the file size is small enough. Border will be added to the image with a thickness of 4 pixels.
 ```
-GifToWebM.exe -i animation.gif -o result.webm -c 1 -b --border-size 4
+GifToWebM.exe -i animation.gif -o result.webm -c 5 -b --border-size 4
 ```
 
-This command will convert `animation.gif` to `result.webm`, increasing the CRF by 1 on each iteration until the file size is small enough.
+This comman will convert png sequence to `result.webm`. Border will be added to the image with a thickness of 4 pixels and red color.
+```
+GifToWebM.exe -i "path\to\first_frame.png" -o result.webm -b --border-size 4 --border-color #FF0000
+```
 
 ## Notes
 
