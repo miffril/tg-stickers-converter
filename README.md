@@ -41,7 +41,7 @@ This command will convert `animation.gif` to `result.webm`, increasing the CRF b
 GifToWebM.exe -i animation.gif -o result.webm -c 5 -b --border-size 4
 ```
 
-This comman will convert png sequence to `result.webm`. Border will be added to the image with a thickness of 4 pixels and red color.
+This command will convert png sequence to `result.webm`. Border will be added to the image with a thickness of 4 pixels and red color.
 ```
 GifToWebM.exe -i "path\to\first_frame.png" -o result.webm -b --border-size 4 --border-color #FF0000
 ```
