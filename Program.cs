@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -13,13 +14,15 @@ namespace GifToWebM
         static void Main(string[] args)
         {
             // Default settings
-            string inputGif = "input.gif";         // Input GIF file
-            string outputVideo = "output.webm";      // Output video file
+            string inputGif = null;                // Input GIF file
+            string[] inputPngs = null;             // Input PNG files
+            string outputVideo = "output.webm";    // Output video file
             int crf = 30;                          // Default CRF value
             int crfStep = 2;                       // CRF step value
             bool addBorder = false;                // Flag to add border
             int borderSize = 2;                    // Border size in pixels
             string borderColorHex = "#FFFFFF";     // Border color (white)
+            int fps = 10;                          // Default FPS
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -30,7 +33,15 @@ namespace GifToWebM
                     case "--input":
                         if (i + 1 < args.Length)
                         {
-                            inputGif = args[++i];
+                            string input = args[++i];
+                            if (input.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+                            {
+                                inputGif = input;
+                            }
+                            else if (input.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                            {
+                                inputPngs = Directory.GetFiles(Path.GetDirectoryName(input), "*.png");
+                            }
                         }
                         else
                         {
@@ -88,6 +99,17 @@ namespace GifToWebM
                             return;
                         }
                         break;
+                    case "--fps":
+                        if (i + 1 < args.Length && int.TryParse(args[++i], out int inputFps))
+                        {
+                            fps = inputFps;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error: Missing value for border color.");
+                            return;
+                        }
+                        break;
                     case "-h":
                     case "--help":
                         PrintHelp();
@@ -100,9 +122,16 @@ namespace GifToWebM
             }
 
             // Check if input file exists
-            if (!File.Exists(inputGif))
+            if (inputGif != null && !File.Exists(inputGif))
             {
                 Console.WriteLine($"Error: Input file '{inputGif}' not found.");
+                PrintHelp();
+                return;
+            }
+
+            if (inputPngs != null && inputPngs.Length == 0)
+            {
+                Console.WriteLine("Error: No PNG files found.");
                 PrintHelp();
                 return;
             }
@@ -131,93 +160,130 @@ namespace GifToWebM
             int targetWidth = 512;
             int targetHeight = 512;
 
-            // Load GIF using WIC with OnLoad to load all data immediately
-            GifBitmapDecoder decoder;
-            using (FileStream fs = new FileStream(inputGif, FileMode.Open, FileAccess.Read, FileShare.Read))
-            {
-                decoder = new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            }
+            int frameCount = 0;
 
-            int frameCount = decoder.Frames.Count;
-            Console.WriteLine($"Found {frameCount} frames.");
-
-            // Calculate total animation time to determine FPS correctly
-            double totalDelay = 0;
-            for (int i = 0; i < frameCount; i++)
+            if (inputGif != null)
             {
-                BitmapFrame frame = decoder.Frames[i];
-                double frameDelay = 0.1; // Default (0.1 sec = 10 FPS) if delay is not specified
-                if (frame.Metadata is BitmapMetadata metadata)
+                // Load GIF using WIC with OnLoad to load all data immediately
+                GifBitmapDecoder decoder;
+                using (FileStream fs = new FileStream(inputGif, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    object delayObj = null;
-                    try
+                    decoder = new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                }
+
+                frameCount = decoder.Frames.Count;
+                Console.WriteLine($"Found {frameCount} frames.");
+
+                // Calculate total animation time to determine FPS correctly
+                double totalDelay = 0;
+                for (int i = 0; i < frameCount; i++)
+                {
+                    BitmapFrame frame = decoder.Frames[i];
+                    double frameDelay = 0.1; // Default (0.1 sec = 10 FPS) if delay is not specified
+                    if (frame.Metadata is BitmapMetadata metadata)
                     {
-                        delayObj = metadata.GetQuery("/grctlext/Delay");
+                        object delayObj = null;
+                        try
+                        {
+                            delayObj = metadata.GetQuery("/grctlext/Delay");
+                        }
+                        catch { }
+                        if (delayObj != null)
+                        {
+                            // Delay is stored as ushort (in hundredths of a second)
+                            ushort delay = (ushort)delayObj;
+                            frameDelay = delay / 100.0;
+                        }
                     }
-                    catch { }
-                    if (delayObj != null)
+                    totalDelay += frameDelay;
+                }
+
+                // Check GIF duration (error if exceeds 3 seconds)
+                if (totalDelay > 3.0)
+                {
+                    Console.WriteLine("Error: Input GIF duration exceeds 3 seconds.");
+                    return;
+                }
+
+                // Determine FPS (if totalDelay is zero, default to 10 FPS)
+                fps = (int)((totalDelay > 0) ? frameCount / totalDelay : 10);
+                Console.WriteLine($"Calculated FPS: {fps}");
+
+                // Variable to store the last valid frame
+                BitmapSource lastValidFrame = null;
+
+                // Process each frame: scale and save as PNG
+                for (int i = 0; i < frameCount; i++)
+                {
+                    BitmapFrame frame = decoder.Frames[i];
+
+                    // Convert frame to format with alpha channel (Bgra32)
+                    FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+
+                    // Check if frame is completely black; replace with last valid frame if needed
+                    if (IsBlackFrame(formattedFrame))
                     {
-                        // Delay is stored as ushort (in hundredths of a second)
-                        ushort delay = (ushort)delayObj;
-                        frameDelay = delay / 100.0;
+                        Console.WriteLine($"Replacing black frame {i} with the last valid frame");
+                        if (lastValidFrame != null)
+                        {
+                            formattedFrame = new FormatConvertedBitmap(lastValidFrame, PixelFormats.Bgra32, null, 0);
+                        }
                     }
-                }
-                totalDelay += frameDelay;
-            }
-
-            // Check GIF duration (error if exceeds 3 seconds)
-            if (totalDelay > 3.0)
-            {
-                Console.WriteLine("Error: Input GIF duration exceeds 3 seconds.");
-                return;
-            }
-
-            // Determine FPS (if totalDelay is zero, default to 10 FPS)
-            int fps = (int)((totalDelay > 0) ? frameCount / totalDelay : 10);
-            Console.WriteLine($"Calculated FPS: {fps}");
-
-            // Variable to store the last valid frame
-            BitmapSource lastValidFrame = null;
-
-            // Process each frame: scale and save as PNG
-            for (int i = 0; i < frameCount; i++)
-            {
-                BitmapFrame frame = decoder.Frames[i];
-
-                // Convert frame to format with alpha channel (Bgra32)
-                FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
-
-                // Check if frame is completely black; replace with last valid frame if needed
-                if (IsBlackFrame(formattedFrame))
-                {
-                    Console.WriteLine($"Replacing black frame {i} with the last valid frame");
-                    if (lastValidFrame != null)
+                    else
                     {
-                        formattedFrame = new FormatConvertedBitmap(lastValidFrame, PixelFormats.Bgra32, null, 0);
+                        lastValidFrame = formattedFrame;
                     }
+
+                    // Calculate scaling factors
+                    double scaleX = (double)targetWidth / formattedFrame.PixelWidth;
+                    double scaleY = (double)targetHeight / formattedFrame.PixelHeight;
+
+                    // Scale using TransformedBitmap and ScaleTransform
+                    TransformedBitmap scaledBitmap = new TransformedBitmap(formattedFrame, new ScaleTransform(scaleX, scaleY));
+
+                    // Add border if required
+                    if (addBorder)
+                    {
+                        scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
+                    }
+
+                    // Save frame as PNG
+                    string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
+                    SavePng(scaledBitmap, framePath);
+                    Console.WriteLine($"Saved frame {i} to {framePath}");
                 }
-                else
+            }
+            else if (inputPngs != null)
+            {
+                frameCount = inputPngs.Length;
+                Console.WriteLine($"Found {frameCount} PNG files.");
+
+                // Process each PNG file: scale and save as PNG
+                for (int i = 0; i < frameCount; i++)
                 {
-                    lastValidFrame = formattedFrame;
+                    BitmapImage bitmap = new BitmapImage(new Uri(inputPngs[i]));
+
+                    // Convert frame to format with alpha channel (Bgra32)
+                    FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+
+                    // Calculate scaling factors
+                    double scaleX = (double)targetWidth / formattedFrame.PixelWidth;
+                    double scaleY = (double)targetHeight / formattedFrame.PixelHeight;
+
+                    // Scale using TransformedBitmap and ScaleTransform
+                    TransformedBitmap scaledBitmap = new TransformedBitmap(formattedFrame, new ScaleTransform(scaleX, scaleY));
+
+                    // Add border if required
+                    if (addBorder)
+                    {
+                        scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
+                    }
+
+                    // Save frame as PNG
+                    string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
+                    SavePng(scaledBitmap, framePath);
+                    Console.WriteLine($"Saved frame {i} to {framePath}");
                 }
-
-                // Calculate scaling factors
-                double scaleX = (double)targetWidth / formattedFrame.PixelWidth;
-                double scaleY = (double)targetHeight / formattedFrame.PixelHeight;
-
-                // Scale using TransformedBitmap and ScaleTransform
-                TransformedBitmap scaledBitmap = new TransformedBitmap(formattedFrame, new ScaleTransform(scaleX, scaleY));
-
-                // Add border if required
-                if (addBorder)
-                {
-                    scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
-                }
-
-                // Save frame as PNG
-                string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
-                SavePng(scaledBitmap, framePath);
-                Console.WriteLine($"Saved frame {i} to {framePath}");
             }
 
             // Build ffmpeg command; ffmpeg.exe should be in the same folder as the application
@@ -435,12 +501,13 @@ namespace GifToWebM
         {
             Console.WriteLine("Usage: converter.exe [options]");
             Console.WriteLine("Options:");
-            Console.WriteLine("  -i, --input <file>       Input GIF file");
+            Console.WriteLine("  -i, --input <file>       Input GIF file or PNG file (for directory of PNGs)");
             Console.WriteLine("  -o, --output <file>      Output WebM file");
             Console.WriteLine("  -c, --crf-step <value>   CRF step value (default: 2)");
             Console.WriteLine("  -b, --border             Add border to frames");
             Console.WriteLine("      --border-size <value> Border size in pixels (default: 2)");
             Console.WriteLine("      --border-color <hex>  Border color in hex (default: #FFFFFF)");
+            Console.WriteLine("      --fps <value>         FPS value (default: 10). Autocalculated for gif");
             Console.WriteLine("  -h, --help               Display this help message");
         }
     }
