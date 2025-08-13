@@ -25,6 +25,7 @@ namespace GifToWebM
             int fps = 10;                          // Default FPS
             int targetWidth = 512;                 // Target width in pixels (default: 512)
             int targetHeight = 512;                // Target height in pixels (default: 512)
+            bool emojiMode = false;                // Emoji mode flag
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -112,18 +113,26 @@ namespace GifToWebM
                             return;
                         }
                         break;
+                    case "-e":
+                    case "--emoji":
+                        targetWidth = 100;
+                        targetHeight = 100;
+                        emojiMode = true;
+                        break;
                     case "--size":
                     case "-s":
-                        if (i + 1 < args.Length && int.TryParse(args[++i], out int parsedSize))
-                        {
-                            targetWidth = parsedSize;
-                            targetHeight = parsedSize;
-                        }
-                        else
-                        {
-                            Console.WriteLine("Error: Invalid value for size.");
-                            return;
-                        }
+                        if (!emojiMode) {
+                            if (i + 1 < args.Length && int.TryParse(args[++i], out int parsedSize))
+                            {
+                                targetWidth = parsedSize;
+                                targetHeight = parsedSize;
+                            }
+                            else
+                            {
+                                Console.WriteLine("Error: Invalid value for size.");
+                                return;
+                            }
+                        } // else ignore -s if emojiMode is set
                         break;
                     case "-h":
                     case "--help":
@@ -522,6 +531,7 @@ namespace GifToWebM
             Console.WriteLine("      --border-color <hex>  Border color in hex (default: #FFFFFF)");
             Console.WriteLine("      --fps <value>         FPS value (default: 10). Autocalculated for gif");
             Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
+            Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");
             Console.WriteLine("  -h, --help               Display this help message");
         }
     }
