@@ -23,6 +23,8 @@ namespace GifToWebM
             int borderSize = 2;                    // Border size in pixels
             string borderColorHex = "#FFFFFF";     // Border color (white)
             int fps = 10;                          // Default FPS
+            int targetWidth = 512;                 // Target width in pixels (default: 512)
+            int targetHeight = 512;                // Target height in pixels (default: 512)
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -110,6 +112,19 @@ namespace GifToWebM
                             return;
                         }
                         break;
+                    case "--size":
+                    case "-s":
+                        if (i + 1 < args.Length && int.TryParse(args[++i], out int parsedSize))
+                        {
+                            targetWidth = parsedSize;
+                            targetHeight = parsedSize;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error: Invalid value for size.");
+                            return;
+                        }
+                        break;
                     case "-h":
                     case "--help":
                         PrintHelp();
@@ -155,10 +170,6 @@ namespace GifToWebM
             // Create frames directory if it does not exist
             if (!Directory.Exists(framesDir))
                 Directory.CreateDirectory(framesDir);
-
-            // Target dimensions for frames
-            int targetWidth = 512;
-            int targetHeight = 512;
 
             int frameCount = 0;
 
@@ -508,6 +519,7 @@ namespace GifToWebM
             Console.WriteLine("      --border-size <value> Border size in pixels (default: 2)");
             Console.WriteLine("      --border-color <hex>  Border color in hex (default: #FFFFFF)");
             Console.WriteLine("      --fps <value>         FPS value (default: 10). Autocalculated for gif");
+            Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
             Console.WriteLine("  -h, --help               Display this help message");
         }
     }
