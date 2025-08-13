@@ -254,7 +254,7 @@ namespace GifToWebM
                         lastValidFrame = formattedFrame;
                     }
 
-                    // Пропорциональное масштабирование
+                    // Proportional scaling
                     TransformedBitmap scaledBitmap = ScaleProportional(formattedFrame, targetWidth);
 
                     // Add border if required
@@ -284,7 +284,7 @@ namespace GifToWebM
                     // Convert frame to format with alpha channel (Bgra32)
                     FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
 
-                    // Пропорциональное масштабирование
+                    // Proportional scaling
                     TransformedBitmap scaledBitmap = ScaleProportional(formattedFrame, targetWidth);
 
                     // Add border if required
@@ -527,7 +527,6 @@ namespace GifToWebM
             Console.WriteLine("  -h, --help               Display this help message");
         }
 
-        // --- New: Proportional scaling branch ---
         // Helper function to calculate proportional scale
         static TransformedBitmap ScaleProportional(BitmapSource source, int maxSize)
         {
