@@ -272,7 +272,9 @@ namespace GifToWebM
                 // Process each PNG file: scale and save as PNG
                 for (int i = 0; i < frameCount; i++)
                 {
-                    BitmapImage bitmap = new BitmapImage(new Uri(inputPngs[i]));
+                    string pngPath = inputPngs[i];
+                    string fullPath = Path.GetFullPath(pngPath);
+                    BitmapImage bitmap = new BitmapImage(new Uri(fullPath));
 
                     // Convert frame to format with alpha channel (Bgra32)
                     FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
