@@ -254,12 +254,8 @@ namespace GifToWebM
                         lastValidFrame = formattedFrame;
                     }
 
-                    // Calculate scaling factors
-                    double scaleX = (double)targetWidth / formattedFrame.PixelWidth;
-                    double scaleY = (double)targetHeight / formattedFrame.PixelHeight;
-
-                    // Scale using TransformedBitmap and ScaleTransform
-                    TransformedBitmap scaledBitmap = new TransformedBitmap(formattedFrame, new ScaleTransform(scaleX, scaleY));
+                    // Пропорциональное масштабирование
+                    TransformedBitmap scaledBitmap = ScaleProportional(formattedFrame, targetWidth);
 
                     // Add border if required
                     if (addBorder)
@@ -288,12 +284,8 @@ namespace GifToWebM
                     // Convert frame to format with alpha channel (Bgra32)
                     FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
 
-                    // Calculate scaling factors
-                    double scaleX = (double)targetWidth / formattedFrame.PixelWidth;
-                    double scaleY = (double)targetHeight / formattedFrame.PixelHeight;
-
-                    // Scale using TransformedBitmap and ScaleTransform
-                    TransformedBitmap scaledBitmap = new TransformedBitmap(formattedFrame, new ScaleTransform(scaleX, scaleY));
+                    // Пропорциональное масштабирование
+                    TransformedBitmap scaledBitmap = ScaleProportional(formattedFrame, targetWidth);
 
                     // Add border if required
                     if (addBorder)
@@ -533,6 +525,18 @@ namespace GifToWebM
             Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
             Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");
             Console.WriteLine("  -h, --help               Display this help message");
+        }
+
+        // --- New: Proportional scaling branch ---
+        // Helper function to calculate proportional scale
+        static TransformedBitmap ScaleProportional(BitmapSource source, int maxSize)
+        {
+            int srcWidth = source.PixelWidth;
+            int srcHeight = source.PixelHeight;
+            double scale = (double)maxSize / Math.Max(srcWidth, srcHeight);
+            double scaleX = scale;
+            double scaleY = scale;
+            return new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
         }
     }
 }
