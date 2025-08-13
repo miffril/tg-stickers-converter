@@ -184,7 +184,7 @@ namespace GifToWebM
 
             if (inputGif != null)
             {
-                // Load GIF using WIC with OnLoad to load all data immediately
+                // First pass: load GIF metadata to calculate FPS
                 GifBitmapDecoder decoder;
                 using (FileStream fs = new FileStream(inputGif, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
@@ -229,44 +229,91 @@ namespace GifToWebM
                 fps = (int)((totalDelay > 0) ? frameCount / totalDelay : 10);
                 Console.WriteLine($"Calculated FPS: {fps}");
 
-                // Variable to store the last valid frame
-                BitmapSource lastValidFrame = null;
+                // Second pass: extract frames using ffmpeg
+                string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+                string tempFramesDir = Path.Combine(framesDir, "temp");
+                Directory.CreateDirectory(tempFramesDir);
 
-                // Process each frame: scale and save as PNG
+                string extractCmd = $"-y -i \"{inputGif}\" \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
+                Console.WriteLine("Extracting frames from GIF using ffmpeg...");
+                
+                ProcessStartInfo psiExtract = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = extractCmd,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                
+                using (Process proc = Process.Start(psiExtract))
+                {
+                    string output = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit();
+                    Console.WriteLine(output);
+                }
+
+                // Get extracted frames and process them
+                string[] extractedFrames = Directory.GetFiles(tempFramesDir, "frame_*.png");
+                Array.Sort(extractedFrames); // Ensure proper order
+                frameCount = extractedFrames.Length;
+                Console.WriteLine($"Processing {frameCount} extracted frames...");
+
+                // Process each extracted frame
                 for (int i = 0; i < frameCount; i++)
                 {
-                    BitmapFrame frame = decoder.Frames[i];
-
-                    // Convert frame to format with alpha channel (Bgra32)
-                    FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
-
-                    // Check if frame is completely black; replace with last valid frame if needed
-                    if (IsBlackFrame(formattedFrame))
+                    string pngPath = extractedFrames[i];
+                    BitmapImage bitmap = null;
+                    try
                     {
-                        Console.WriteLine($"Replacing black frame {i} with the last valid frame");
-                        if (lastValidFrame != null)
+                        bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.UriSource = new Uri(Path.GetFullPath(pngPath));
+                        bitmap.EndInit();
+                        bitmap.Freeze(); // Ensure the bitmap is frozen for better memory management
+                        
+                        // Convert to format with alpha channel
+                        FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+                        
+                        // Scale and pad to square
+                        BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                        
+                        // Add border if required
+                        if (addBorder)
                         {
-                            formattedFrame = new FormatConvertedBitmap(lastValidFrame, PixelFormats.Bgra32, null, 0);
+                            scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
+                        }
+                        
+                        // Save processed frame
+                        string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
+                        SavePng(scaledBitmap, framePath);
+                        Console.WriteLine($"Processed and saved frame {i} to {framePath}");
+                    }
+                    finally
+                    {
+                        if (bitmap != null)
+                        {
+                            // Explicitly remove the reference to help with cleanup
+                            bitmap = null;
                         }
                     }
-                    else
-                    {
-                        lastValidFrame = formattedFrame;
-                    }
+                }
 
-                    // Proportional scaling
-                    TransformedBitmap scaledBitmap = ScaleProportional(formattedFrame, targetWidth);
+                // Force garbage collection to ensure resources are released
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
 
-                    // Add border if required
-                    if (addBorder)
-                    {
-                        scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
-                    }
-
-                    // Save frame as PNG
-                    string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
-                    SavePng(scaledBitmap, framePath);
-                    Console.WriteLine($"Saved frame {i} to {framePath}");
+                // Cleanup temporary frames
+                try
+                {
+                    Directory.Delete(tempFramesDir, true);
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine($"Warning: Could not delete temporary directory: {ex.Message}");
+                    // Continue execution even if cleanup fails
                 }
             }
             else if (inputPngs != null)
@@ -285,7 +332,7 @@ namespace GifToWebM
                     FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
 
                     // Proportional scaling
-                    TransformedBitmap scaledBitmap = ScaleProportional(formattedFrame, targetWidth);
+                    BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
 
                     // Add border if required
                     if (addBorder)
@@ -301,7 +348,7 @@ namespace GifToWebM
             }
 
             // Build ffmpeg command; ffmpeg.exe should be in the same folder as the application
-            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+            string ffmpegPathForVideo = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
             string argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -crf {crf} \"{outputVideo}\"";
 
             while (true)
@@ -309,7 +356,7 @@ namespace GifToWebM
                 Console.WriteLine($"Running ffmpeg with CRF {crf} to create video...");
                 ProcessStartInfo psi = new ProcessStartInfo
                 {
-                    FileName = ffmpegPath,
+                    FileName = ffmpegPathForVideo,
                     Arguments = argumentsStr,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -536,6 +583,33 @@ namespace GifToWebM
             double scaleX = scale;
             double scaleY = scale;
             return new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
+        }
+
+        // Helper function to calculate proportional scale and pad to square
+        static BitmapSource ScaleAndPadToSquare(BitmapSource source, int targetSize)
+        {
+            int srcWidth = source.PixelWidth;
+            int srcHeight = source.PixelHeight;
+            double scale = (double)targetSize / Math.Max(srcWidth, srcHeight);
+            int scaledWidth = (int)Math.Round(srcWidth * scale);
+            int scaledHeight = (int)Math.Round(srcHeight * scale);
+
+            // Scale the image proportionally
+            TransformedBitmap scaled = new TransformedBitmap(source, new ScaleTransform(scale, scale));
+
+            // Create a square canvas with transparent background
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext dc = visual.RenderOpen())
+            {
+                dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, targetSize, targetSize));
+                // Center the image
+                double offsetX = (targetSize - scaledWidth) / 2.0;
+                double offsetY = (targetSize - scaledHeight) / 2.0;
+                dc.DrawImage(scaled, new Rect(offsetX, offsetY, scaledWidth, scaledHeight));
+            }
+            RenderTargetBitmap result = new RenderTargetBitmap(targetSize, targetSize, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
+            result.Render(visual);
+            return result;
         }
     }
 }
