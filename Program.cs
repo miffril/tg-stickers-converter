@@ -331,18 +331,34 @@ namespace GifToWebM
                     // Convert frame to format with alpha channel (Bgra32)
                     FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
 
-                    // Proportional scaling
-                    BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                    BitmapSource processedBitmap;
+                    // If the image is square, scale it proportionally
+                    if (formattedFrame.PixelWidth == formattedFrame.PixelHeight)
+                    {
+                        if (formattedFrame.PixelWidth == targetWidth)
+                        {
+                            processedBitmap = formattedFrame;
+                        }
+                        else
+                        {
+                            processedBitmap = ScaleProportional(formattedFrame, targetWidth);
+                        }
+                    }
+                    else
+                    {
+                        // Proportional scaling and padding to square
+                        processedBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                    }
 
                     // Add border if required
                     if (addBorder)
                     {
-                        scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
+                        processedBitmap = AddBorder(processedBitmap, borderSize, borderColorHex);
                     }
 
                     // Save frame as PNG
                     string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
-                    SavePng(scaledBitmap, framePath);
+                    SavePng(processedBitmap, framePath);
                     Console.WriteLine($"Saved frame {i} to {framePath}");
                 }
             }
