@@ -16,6 +16,7 @@ namespace GifToWebM
             // Default settings
             string inputGif = null;                // Input GIF file
             string[] inputPngs = null;             // Input PNG files
+            string inputMp4 = null;                // Input MP4 file
             string outputVideo = "output.webm";    // Output video file
             int crf = 30;                          // Default CRF value
             int crfStep = 2;                       // CRF step value
@@ -45,6 +46,10 @@ namespace GifToWebM
                             else if (input.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
                             {
                                 inputPngs = Directory.GetFiles(Path.GetDirectoryName(input), "*.png");
+                            }
+                            else if (input.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                            {
+                                inputMp4 = input;
                             }
                         }
                         else
@@ -169,6 +174,13 @@ namespace GifToWebM
             if (inputPngs != null && inputPngs.Length == 0)
             {
                 Console.WriteLine("Error: No PNG files found.");
+                PrintHelp();
+                return;
+            }
+
+            if (inputMp4 != null && !File.Exists(inputMp4))
+            {
+                Console.WriteLine($"Error: Input file '{inputMp4}' not found.");
                 PrintHelp();
                 return;
             }
@@ -373,6 +385,139 @@ namespace GifToWebM
                     string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
                     SavePng(processedBitmap, framePath);
                     Console.WriteLine($"Saved frame {i} to {framePath}");
+                }
+            }
+            else if (inputMp4 != null)
+            {
+                // Получаем длительность и fps через ffprobe
+                string ffprobePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffprobe.exe");
+                double duration = 0;
+                int detectedFps = 10;
+                try
+                {
+                    // Получить длительность
+                    string probeArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputMp4}\"";
+                    ProcessStartInfo psiProbe = new ProcessStartInfo
+                    {
+                        FileName = ffprobePath,
+                        Arguments = probeArgs,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (Process proc = Process.Start(psiProbe))
+                    {
+                        string output = proc.StandardOutput.ReadToEnd();
+                        proc.WaitForExit();
+                        double.TryParse(output.Trim(), out duration);
+                    }
+                    // Получить fps
+                    string fpsProbeArgs = $"-v 0 -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 \"{inputMp4}\"";
+                    ProcessStartInfo psiFpsProbe = new ProcessStartInfo
+                    {
+                        FileName = ffprobePath,
+                        Arguments = fpsProbeArgs,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (Process proc = Process.Start(psiFpsProbe))
+                    {
+                        string output = proc.StandardOutput.ReadToEnd();
+                        proc.WaitForExit();
+                        string fpsStr = output.Trim();
+                        if (fpsStr.Contains("/"))
+                        {
+                            var parts = fpsStr.Split('/');
+                            if (parts.Length == 2 && double.TryParse(parts[0], out double num) && double.TryParse(parts[1], out double denom) && denom != 0)
+                            {
+                                detectedFps = (int)Math.Round(num / denom);
+                            }
+                        }
+                        else
+                        {
+                            double.TryParse(fpsStr, out double fpsVal);
+                            detectedFps = (int)Math.Round(fpsVal);
+                        }
+                    }
+                }
+                catch
+                {
+                    Console.WriteLine("Warning: Could not determine video duration or FPS. Using defaults.");
+                }
+                if (duration > 3.0)
+                {
+                    Console.WriteLine("Warning: Input MP4 duration exceeds 3 seconds. Only first 3 seconds will be used.");
+                }
+                fps = detectedFps;
+                // Извлекаем кадры через ffmpeg, только первые 3 секунды
+                string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+                string tempFramesDir = Path.Combine(framesDir, "temp");
+                Directory.CreateDirectory(tempFramesDir);
+                string extractCmd = $"-y -i \"{inputMp4}\" -t 3 -vf fps={fps} \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
+                Console.WriteLine($"Extracting frames from MP4 using ffmpeg at {fps} FPS...");
+                ProcessStartInfo psiExtract = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = extractCmd,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                using (Process proc = Process.Start(psiExtract))
+                {
+                    string output = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit();
+                    Console.WriteLine(output);
+                }
+                // Получаем извлечённые кадры и обрабатываем их
+                string[] extractedFrames = Directory.GetFiles(tempFramesDir, "frame_*.png");
+                Array.Sort(extractedFrames); // Ensure proper order
+                frameCount = extractedFrames.Length;
+                Console.WriteLine($"Processing {frameCount} extracted frames...");
+                for (int i = 0; i < frameCount; i++)
+                {
+                    string pngPath = extractedFrames[i];
+                    BitmapImage bitmap = null;
+                    try
+                    {
+                        bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.UriSource = new Uri(Path.GetFullPath(pngPath));
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        // Прозрачность для mp4 неактуальна
+                        FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgr32, null, 0);
+                        BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                        if (addBorder)
+                        {
+                            scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex, blurRadius);
+                        }
+                        string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
+                        SavePng(scaledBitmap, framePath);
+                        Console.WriteLine($"Processed and saved frame {i} to {framePath}");
+                    }
+                    finally
+                    {
+                        if (bitmap != null)
+                        {
+                            bitmap = null;
+                        }
+                    }
+                }
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                try
+                {
+                    Directory.Delete(tempFramesDir, true);
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine($"Warning: Could not delete temporary directory: {ex.Message}");
                 }
             }
 
