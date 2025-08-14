@@ -14,7 +14,7 @@ A simple C# console utility that converts short GIF, MP4, or PNG animations (up 
 - **Supports optional border blur with customizable radius**
 - Calculates correct FPS based on GIF timing or uses original FPS for MP4
 - Encodes frames into a VP9 WebM file with alpha channel support (GIF/PNG only)
-- Adjusts CRF until output size is under 256 KB
+- Adjusts CRF until output size is under 256 KB (or 64 KB if emoji mode is enabled)
 - **Input video (GIF/MP4) is always trimmed to the first 3 seconds**
 
 ## Requirements
@@ -95,6 +95,7 @@ Converter.exe --help
 - The `-s`/`--size` parameter sets the longest side to the specified value, preserving the original aspect ratio.
 - The `--blur <value>` option enables border blur with the specified radius. If not set, border is sharp.
 - **Transparency is only supported for GIF and PNG input. MP4 input does not support transparency.**
+- **If emoji mode (`-e`) is enabled, the output file size limit is reduced to 64 KB. Otherwise, the limit is 256 KB.**
 
 ## License
 

@@ -578,6 +578,8 @@ namespace GifToWebM
             string ffmpegPathForVideo = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
             string argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -crf {crf} \"{outputVideo}\"";
 
+            int maxOutputSize = emojiMode ? 64 * 1024 : 256 * 1024;
+
             while (true)
             {
                 Console.WriteLine($"Running ffmpeg with CRF {crf} to create video...");
@@ -599,7 +601,7 @@ namespace GifToWebM
                 }
 
                 FileInfo fileInfo = new FileInfo(outputVideo);
-                if (fileInfo.Length <= 256 * 1024)
+                if (fileInfo.Length <= maxOutputSize)
                 {
                     break;
                 }
