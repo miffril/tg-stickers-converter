@@ -26,6 +26,7 @@ namespace GifToWebM
             int targetWidth = 512;                 // Target width in pixels (default: 512)
             int targetHeight = 512;                // Target height in pixels (default: 512)
             bool emojiMode = false;                // Emoji mode flag
+            int blurRadius = 0;                    // Blur radius for border, default: 0 (no blur)
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -99,6 +100,18 @@ namespace GifToWebM
                         else
                         {
                             Console.WriteLine("Error: Missing value for border color.");
+                            return;
+                        }
+                        break;
+                    case "--blur":
+                        if (i + 1 < args.Length && int.TryParse(args[i + 1], out int parsedBlur))
+                        {
+                            blurRadius = parsedBlur;
+                            i++;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error: --blur requires an integer value.");
                             return;
                         }
                         break;
@@ -283,7 +296,7 @@ namespace GifToWebM
                         // Add border if required
                         if (addBorder)
                         {
-                            scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex);
+                            scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex, blurRadius);
                         }
                         
                         // Save processed frame
@@ -353,7 +366,7 @@ namespace GifToWebM
                     // Add border if required
                     if (addBorder)
                     {
-                        processedBitmap = AddBorder(processedBitmap, borderSize, borderColorHex);
+                        processedBitmap = AddBorder(processedBitmap, borderSize, borderColorHex, blurRadius);
                     }
 
                     // Save frame as PNG
@@ -428,7 +441,7 @@ namespace GifToWebM
         /// The method dilates the alpha channel, computes the border mask,
         /// applies a box blur to smooth the mask, and composites the original image over the border.
         /// </summary>
-        static TransformedBitmap AddBorder(BitmapSource bitmap, int borderSize, string borderColorHex)
+        static TransformedBitmap AddBorder(BitmapSource bitmap, int borderSize, string borderColorHex, int blurRadius = 0)
         {
             int width = bitmap.PixelWidth;
             int height = bitmap.PixelHeight;
@@ -481,33 +494,37 @@ namespace GifToWebM
                 borderMask[i] = (byte)(diff < 0 ? 0 : diff);
             }
 
-            // Apply a simple box blur to smooth the border mask
-            int blurRadius = 2; // Adjust for smoother or sharper effect
-            byte[] blurredMask = new byte[width * height];
-            for (int y = 0; y < height; y++)
+            // Apply blur if blurRadius > 0
+            byte[] finalMask = borderMask;
+            if (blurRadius > 0)
             {
-                for (int x = 0; x < width; x++)
+                byte[] blurredMask = new byte[width * height];
+                for (int y = 0; y < height; y++)
                 {
-                    int sum = 0;
-                    int count = 0;
-                    for (int j = -blurRadius; j <= blurRadius; j++)
+                    for (int x = 0; x < width; x++)
                     {
-                        for (int i = -blurRadius; i <= blurRadius; i++)
+                        int sum = 0;
+                        int count = 0;
+                        for (int j = -blurRadius; j <= blurRadius; j++)
                         {
-                            int nx = x + i;
-                            int ny = y + j;
-                            if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                            for (int i = -blurRadius; i <= blurRadius; i++)
                             {
-                                sum += borderMask[ny * width + nx];
-                                count++;
+                                int nx = x + i;
+                                int ny = y + j;
+                                if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                                {
+                                    sum += borderMask[ny * width + nx];
+                                    count++;
+                                }
                             }
                         }
+                        blurredMask[y * width + x] = (byte)(sum / count);
                     }
-                    blurredMask[y * width + x] = (byte)(sum / count);
                 }
+                finalMask = blurredMask;
             }
 
-            // Create border image with the specified color and blurred mask as alpha
+            // Create border image with the specified color and mask as alpha
             Color borderColor = (Color)ColorConverter.ConvertFromString(borderColorHex);
             byte[] borderPixels = new byte[height * stride];
             for (int y = 0; y < height; y++)
@@ -518,7 +535,7 @@ namespace GifToWebM
                     borderPixels[idx] = borderColor.B;
                     borderPixels[idx + 1] = borderColor.G;
                     borderPixels[idx + 2] = borderColor.R;
-                    borderPixels[idx + 3] = blurredMask[y * width + x];
+                    borderPixels[idx + 3] = finalMask[y * width + x];
                 }
             }
 
@@ -584,6 +601,7 @@ namespace GifToWebM
             Console.WriteLine("  -b, --border             Add border to frames");
             Console.WriteLine("      --border-size <value> Border size in pixels (default: 2)");
             Console.WriteLine("      --border-color <hex>  Border color in hex (default: #FFFFFF)");
+            Console.WriteLine("      --blur <value>        Border blur radius (integer, no default, required value)");
             Console.WriteLine("      --fps <value>         FPS value (default: 10). Autocalculated for gif");
             Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
             Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");
