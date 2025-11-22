@@ -8,7 +8,7 @@ A simple C# console utility that converts short GIF, MP4, or PNG animations (up 
 - For MP4: automatically detects and preserves the original FPS
 - Preserves original image proportions without stretching
 - Allows specifying output frame size in pixels (default: 512px for longest side)
-- Automatically centers images on transparent background
+- Optional padding to square canvas with transparent background
 - Fast emoji mode (-e) for quick 100x100 conversions
 - Adds optional smooth border with customizable color and size
 - **Supports optional border blur with customizable radius**
@@ -41,6 +41,7 @@ Converter.exe [options]
 | `--blur <value>`     | Border blur radius (integer, required value; default: no blur) |
 | `--fps`              | Set FPS for output video (default: `10`). Autocalculated for GIFs, original for MP4 |
 | `-s`, `--size`       | Target size in pixels for longest side (default: `512`) |
+| `-p`, `--pad`        | Add padding to square canvas (default: disabled)    |
 | `-e`, `--emoji`      | Set target size to 100x100 for emoji output        |
 | `-h`, `--help`       | Show help                                          |
 
@@ -49,6 +50,11 @@ Converter.exe [options]
 Convert GIF to WebM with default settings (preserving proportions, max size 512px):
 ```
 Converter.exe -i animation.gif -o result.webm
+```
+
+Convert GIF to WebM with padding to square canvas:
+```
+Converter.exe -i animation.gif -o result.webm --pad
 ```
 
 Convert MP4 to WebM (preserving original FPS, only first 3 seconds):
@@ -93,6 +99,7 @@ Converter.exe --help
 - Output is saved in `output.webm` unless otherwise specified.
 - Intermediate frames are saved as PNGs in a `frames/` directory (automatically cleaned).
 - The `-s`/`--size` parameter sets the longest side to the specified value, preserving the original aspect ratio.
+- By default, images are scaled to fit the target size without padding. Use `--pad` to center images on a square transparent canvas.
 - The `--blur <value>` option enables border blur with the specified radius. If not set, border is sharp.
 - **Transparency is only supported for GIF and PNG input. MP4 input does not support transparency.**
 - **If emoji mode (`-e`) is enabled, the output file size limit is reduced to 64 KB. Otherwise, the limit is 256 KB.**

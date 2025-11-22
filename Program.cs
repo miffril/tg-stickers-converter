@@ -28,6 +28,7 @@ namespace GifToWebM
             int targetHeight = 512;                // Target height in pixels (default: 512)
             bool emojiMode = false;                // Emoji mode flag
             int blurRadius = 0;                    // Blur radius for border, default: 0 (no blur)
+            bool addPadding = false;               // Flag to add padding to square canvas
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -127,9 +128,13 @@ namespace GifToWebM
                         }
                         else
                         {
-                            Console.WriteLine("Error: Missing value for border color.");
+                            Console.WriteLine("Error: Missing value for FPS.");
                             return;
                         }
+                        break;
+                    case "-p":
+                    case "--pad":
+                        addPadding = true;
                         break;
                     case "-e":
                     case "--emoji":
@@ -331,7 +336,7 @@ namespace GifToWebM
                             // Convert to format with alpha channel
                             FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
                             // Scale and pad to square
-                            BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                            BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth, addPadding);
                             // Add border if required
                             if (addBorder)
                             {
@@ -412,7 +417,7 @@ namespace GifToWebM
                         else
                         {
                             // Proportional scaling and padding to square
-                            processedBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                            processedBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth, addPadding);
                         }
 
                         // Add border if required
@@ -532,7 +537,7 @@ namespace GifToWebM
                             bitmap.Freeze();
                             // Transparency is not relevant for mp4
                             FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgr32, null, 0);
-                            BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth);
+                            BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth, addPadding);
                             if (addBorder)
                             {
                                 scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex, blurRadius);
@@ -804,6 +809,7 @@ namespace GifToWebM
             Console.WriteLine("      --blur <value>        Border blur radius (integer, no default, required value)");
             Console.WriteLine("      --fps <value>         FPS value (default: 10). Autocalculated for gif");
             Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
+            Console.WriteLine("  -p, --pad                Add padding to square canvas (default: disabled)");
             Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");
             Console.WriteLine("  -h, --help               Display this help message");
         }
@@ -819,17 +825,27 @@ namespace GifToWebM
             return new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
         }
 
-        // Helper function to calculate proportional scale and pad to square
-        static BitmapSource ScaleAndPadToSquare(BitmapSource source, int targetSize)
+        // Helper function to calculate proportional scale with optional padding
+        // Scales image so that one side equals targetSize and the other is <= targetSize
+        // If addPadding is true, centers the image on a square transparent canvas
+        static BitmapSource ScaleAndPadToSquare(BitmapSource source, int targetSize, bool addPadding = false)
         {
             int srcWidth = source.PixelWidth;
             int srcHeight = source.PixelHeight;
+            
+            // Calculate scale so that the larger dimension equals targetSize
             double scale = (double)targetSize / Math.Max(srcWidth, srcHeight);
             int scaledWidth = (int)Math.Round(srcWidth * scale);
             int scaledHeight = (int)Math.Round(srcHeight * scale);
 
             // Scale the image proportionally
             TransformedBitmap scaled = new TransformedBitmap(source, new ScaleTransform(scale, scale));
+
+            // If padding is disabled, return scaled image without padding
+            if (!addPadding)
+            {
+                return scaled;
+            }
 
             // Create a square canvas with transparent background
             DrawingVisual visual = new DrawingVisual();
