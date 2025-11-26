@@ -19,8 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated input validation to accept `.avif` file extension
 - Enhanced help message to include AVIF in supported formats list
 - **Output filename now automatically generated from input filename when `--output` is not specified**
-  - Example: `animation.gif` ? `animation.webm`, `video.mp4` ? `video.webm`
-  - Previous default was always `output.webm`
 
 ## [0.4.1] - 2025-01-XX
 

@@ -502,7 +502,6 @@ namespace GifToWebM
                     {
                         // Extract stream index if stored in tempFramesDir
                         string actualTempDir = tempFramesDir;
-                        string streamSelector = "";
                         int colorStreamIdx = -1;
                         int alphaStreamIdx = -1;
                         
