@@ -36,7 +36,7 @@ Converter.exe [options]
 | Option                | Description                                          |
 |----------------------|------------------------------------------------------|
 | `-i`, `--input`      | Input GIF, MP4, AVIF file, or PNG file (for PNG sequence)  |
-| `-o`, `--output`     | Output WebM file (default: `output.webm`)           |
+| `-o`, `--output`     | Output WebM file (default)           |
 | `-c`, `--crf-step`   | CRF step increment (default: `2`)                   |
 | `-b`, `--border`     | Add border to frames (default: disabled)            |
 | `--border-size`      | Border thickness in pixels (default: `2`)           |
@@ -52,52 +52,57 @@ Converter.exe [options]
 
 Convert GIF to WebM with default settings (preserving proportions, max size 512px):
 ```
+Converter.exe -i animation.gif
+```
+
+Convert GIF to WebM with custom output filename:
+```
 Converter.exe -i animation.gif -o result.webm
 ```
 
-Convert animated AVIF to WebM with transparency:
+Convert animated AVIF to WebM with transparency (output: animation.webm):
 ```
-Converter.exe -i animation.avif -o result.webm
+Converter.exe -i animation.avif
 ```
 
-Convert AVIF to emoji WebM:
+Convert AVIF to emoji WebM (output: sticker.webm):
 ```
-Converter.exe -i sticker.avif -o emoji.webm -e
+Converter.exe -i sticker.avif -e
 ```
 
 Convert GIF to WebM with padding to square canvas:
 ```
-Converter.exe -i animation.gif -o result.webm --pad
+Converter.exe -i animation.gif --pad
 ```
 
-Convert MP4 to WebM (preserving original FPS, only first 3 seconds):
+Convert MP4 to WebM (preserving original FPS, only first 3 seconds, output: video.webm):
 ```
-Converter.exe -i video.mp4 -o result.webm
+Converter.exe -i video.mp4
 ```
 
-Convert GIF to 100x100 emoji:
+Convert GIF to 100x100 emoji (output: animation.webm):
 ```
-Converter.exe -i animation.gif -o emoji.webm -e
+Converter.exe -i animation.gif -e
 ```
 
 Convert with custom size and white border:
 ```
-Converter.exe -i animation.gif -o result.webm -s 256 -b
+Converter.exe -i animation.gif -s 256 -b
 ```
 
 Convert with custom border color and size:
 ```
-Converter.exe -i animation.gif -o result.webm -b --border-size 4 --border-color "#FF0000"
+Converter.exe -i animation.gif -b --border-size 4 --border-color "#FF0000"
 ```
 
 Convert with custom border blur:
 ```
-Converter.exe -i animation.gif -o result.webm -b --blur 2
+Converter.exe -i animation.gif -b --blur 2
 ```
 
 Convert PNG sequence with custom FPS:
 ```
-Converter.exe -i "first_frame.png" -o result.webm --fps 15
+Converter.exe -i "first_frame.png" --fps 15
 ```
 
 Show help:
@@ -120,7 +125,7 @@ The converter fully supports animated AVIF files:
 - **Input GIFs, MP4s, and AVIFs longer than 3 seconds will be trimmed to the first 3 seconds.**
 - For MP4 input, the original FPS is detected and used for output unless overridden by `--fps`.
 - For AVIF input, FPS is auto-detected from stream metadata.
-- Output is saved in `output.webm` unless otherwise specified.
+- **If no output filename is specified, the output file is named after the input file with .webm extension** (e.g., `animation.gif` ? `animation.webm`).
 - Intermediate frames are saved as PNGs in a `frames/` directory (automatically cleaned).
 - The `-s`/`--size` parameter sets the longest side to the specified value, preserving the original aspect ratio.
 - By default, images are scaled to fit the target size without padding. Use `--pad` to center images on a square transparent canvas.

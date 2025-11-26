@@ -23,7 +23,7 @@ namespace GifToWebM
             // Default settings
             string inputFile = null;
             InputType inputType = InputType.Unknown;
-            string outputVideo = "output.webm";
+            string outputVideo = null;
             int crf = 30;
             int crfStep = 2;
             bool addBorder = false;
@@ -169,6 +169,13 @@ namespace GifToWebM
                 Console.WriteLine("Error: No input file specified.");
                 PrintHelp();
                 return;
+            }
+
+            // Generate output filename if not specified
+            if (string.IsNullOrEmpty(outputVideo))
+            {
+                string inputFileNameWithoutExtension = Path.GetFileNameWithoutExtension(inputFile);
+                outputVideo = inputFileNameWithoutExtension + ".webm";
             }
 
             string extension = Path.GetExtension(inputFile).ToLowerInvariant();
