@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **AVIF format support**: Full support for both static and animated AVIF files
+  - Multi-stream detection: Automatically identifies animated streams in AVIF containers
+  - Alpha channel support: Merges separate color and alpha streams using `alphamerge` filter
+  - Frame rate detection: Automatically detects FPS from AVIF metadata
+  - Respects 3-second maximum duration limit for animated AVIF
+  - Requires ffmpeg built with AVIF support (libaom/libdav1d)
+
+### Changed
+- Updated input validation to accept `.avif` file extension
+- Enhanced help message to include AVIF in supported formats list
+
 ## [0.4.1] - 2025-01-XX
 
 ### Changed

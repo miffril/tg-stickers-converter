@@ -8,27 +8,33 @@ using System.Windows.Media.Imaging;
 
 namespace GifToWebM
 {
+    enum InputType
+    {
+        Unknown,
+        PngSequence,
+        VideoFile
+    }
+
     class Program
     {
         [STAThread]
         static void Main(string[] args)
         {
             // Default settings
-            string inputGif = null;                // Input GIF file
-            string[] inputPngs = null;             // Input PNG files
-            string inputMp4 = null;                // Input MP4 file
-            string outputVideo = "output.webm";    // Output video file
-            int crf = 30;                          // Default CRF value
-            int crfStep = 2;                       // CRF step value
-            bool addBorder = false;                // Flag to add border
-            int borderSize = 2;                    // Border size in pixels
-            string borderColorHex = "#FFFFFF";     // Border color (white)
-            int fps = 10;                          // Default FPS
-            int targetWidth = 512;                 // Target width in pixels (default: 512)
-            int targetHeight = 512;                // Target height in pixels (default: 512)
-            bool emojiMode = false;                // Emoji mode flag
-            int blurRadius = 0;                    // Blur radius for border, default: 0 (no blur)
-            bool addPadding = false;               // Flag to add padding to square canvas
+            string inputFile = null;
+            InputType inputType = InputType.Unknown;
+            string outputVideo = "output.webm";
+            int crf = 30;
+            int crfStep = 2;
+            bool addBorder = false;
+            int borderSize = 2;
+            string borderColorHex = "#FFFFFF";
+            int fps = 10;
+            int targetWidth = 512;
+            int targetHeight = 512;
+            bool emojiMode = false;
+            int blurRadius = 0;
+            bool addPadding = false;
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -39,19 +45,7 @@ namespace GifToWebM
                     case "--input":
                         if (i + 1 < args.Length)
                         {
-                            string input = args[++i];
-                            if (input.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
-                            {
-                                inputGif = input;
-                            }
-                            else if (input.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                            {
-                                inputPngs = Directory.GetFiles(Path.GetDirectoryName(input), "*.png");
-                            }
-                            else if (input.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                            {
-                                inputMp4 = input;
-                            }
+                            inputFile = args[++i];
                         }
                         else
                         {
@@ -144,7 +138,8 @@ namespace GifToWebM
                         break;
                     case "--size":
                     case "-s":
-                        if (!emojiMode) {
+                        if (!emojiMode)
+                        {
                             if (i + 1 < args.Length && int.TryParse(args[++i], out int parsedSize))
                             {
                                 targetWidth = parsedSize;
@@ -155,7 +150,7 @@ namespace GifToWebM
                                 Console.WriteLine("Error: Invalid value for size.");
                                 return;
                             }
-                        } // else ignore -s if emojiMode is set
+                        }
                         break;
                     case "-h":
                     case "--help":
@@ -168,29 +163,37 @@ namespace GifToWebM
                 }
             }
 
-            // Check if input file exists
-            if (inputGif != null && !File.Exists(inputGif))
+            // Determine input type
+            if (string.IsNullOrEmpty(inputFile))
             {
-                Console.WriteLine($"Error: Input file '{inputGif}' not found.");
+                Console.WriteLine("Error: No input file specified.");
                 PrintHelp();
                 return;
             }
 
-            if (inputPngs != null && inputPngs.Length == 0)
+            string extension = Path.GetExtension(inputFile).ToLowerInvariant();
+            if (extension == ".png")
             {
-                Console.WriteLine("Error: No PNG files found.");
+                inputType = InputType.PngSequence;
+            }
+            else if (extension == ".gif" || extension == ".mp4" || extension == ".avif")
+            {
+                inputType = InputType.VideoFile;
+                if (!File.Exists(inputFile))
+                {
+                    Console.WriteLine($"Error: Input file '{inputFile}' not found.");
+                    PrintHelp();
+                    return;
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Error: Unsupported file format '{extension}'.");
                 PrintHelp();
                 return;
             }
 
-            if (inputMp4 != null && !File.Exists(inputMp4))
-            {
-                Console.WriteLine($"Error: Input file '{inputMp4}' not found.");
-                PrintHelp();
-                return;
-            }
-
-            string framesDir = "frames";  // Directory for saving frames
+            string framesDir = "frames";
 
             // Clear frames directory if it exists and is not empty
             if (Directory.Exists(framesDir) && Directory.GetFiles(framesDir).Length > 0)
@@ -206,304 +209,336 @@ namespace GifToWebM
                 }
             }
 
-            // Create frames directory if it does not exist
             if (!Directory.Exists(framesDir))
                 Directory.CreateDirectory(framesDir);
 
             int frameCount = 0;
+            string[] framesToProcess = null;
+            bool hasAlpha = true;
+            string tempFramesDir = null;
 
             try
             {
-                if (inputGif != null)
+                if (inputType == InputType.PngSequence)
                 {
-                    // First pass: load GIF metadata to calculate FPS
-                    GifBitmapDecoder decoder;
-                    try
+                    // Handle PNG sequence
+                    string directory = Path.GetDirectoryName(Path.GetFullPath(inputFile));
+                    framesToProcess = Directory.GetFiles(directory, "*.png");
+                    if (framesToProcess.Length == 0)
                     {
-                        using (FileStream fs = new FileStream(inputGif, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        Console.WriteLine("Error: No PNG files found.");
+                        return;
+                    }
+                    Array.Sort(framesToProcess);
+                    frameCount = framesToProcess.Length;
+                    Console.WriteLine($"Found {frameCount} PNG files.");
+                }
+                else if (inputType == InputType.VideoFile)
+                {
+                    // Detect FPS and extract frames using ffmpeg
+                    string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+                    string ffprobePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffprobe.exe");
+                    tempFramesDir = Path.Combine(framesDir, "temp");
+                    Directory.CreateDirectory(tempFramesDir);
+
+                    if (extension == ".gif")
+                    {
+                        // Calculate FPS from GIF metadata
+                        GifBitmapDecoder decoder;
+                        using (FileStream fs = new FileStream(inputFile, FileMode.Open, FileAccess.Read, FileShare.Read))
                         {
                             decoder = new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error loading GIF: {ex.Message}");
-                        return;
-                    }
-                    frameCount = decoder.Frames.Count;
-                    Console.WriteLine($"Found {frameCount} frames.");
-
-                    // Calculate total animation time to determine FPS correctly
-                    double totalDelay = 0;
-                    for (int i = 0; i < frameCount; i++)
-                    {
-                        BitmapFrame frame = decoder.Frames[i];
-                        double frameDelay = 0.1; // Default (0.1 sec = 10 FPS) if delay is not specified
-                        if (frame.Metadata is BitmapMetadata metadata)
+                        int gifFrameCount = decoder.Frames.Count;
+                        double totalDelay = 0;
+                        for (int i = 0; i < gifFrameCount; i++)
                         {
-                            object delayObj = null;
-                            try
+                            BitmapFrame frame = decoder.Frames[i];
+                            double frameDelay = 0.1;
+                            if (frame.Metadata is BitmapMetadata metadata)
                             {
-                                delayObj = metadata.GetQuery("/grctlext/Delay");
+                                try
+                                {
+                                    object delayObj = metadata.GetQuery("/grctlext/Delay");
+                                    if (delayObj != null)
+                                    {
+                                        ushort delay = (ushort)delayObj;
+                                        frameDelay = delay / 100.0;
+                                    }
+                                }
+                                catch { }
                             }
-                            catch { }
-                            if (delayObj != null)
-                            {
-                                // Delay is stored as ushort (in hundredths of a second)
-                                ushort delay = (ushort)delayObj;
-                                frameDelay = delay / 100.0;
-                            }
+                            totalDelay += frameDelay;
                         }
-                        totalDelay += frameDelay;
-                    }
-
-                    // Check GIF duration (error if exceeds 3 seconds)
-                    if (totalDelay > 3.0)
-                    {
-                        Console.WriteLine("Error: Input GIF duration exceeds 3 seconds.");
-                        return;
-                    }
-
-                    // Determine FPS (if totalDelay is zero, default to 10 FPS)
-                    fps = (int)((totalDelay > 0) ? frameCount / totalDelay : 10);
-                    Console.WriteLine($"Calculated FPS: {fps}");
-
-                    // Second pass: extract frames using ffmpeg
-                    string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-                    string tempFramesDir = Path.Combine(framesDir, "temp");
-                    try
-                    {
-                        Directory.CreateDirectory(tempFramesDir);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error creating temp frames directory: {ex.Message}");
-                        return;
-                    }
-                    string extractCmd = $"-y -i \"{inputGif}\" \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
-                    Console.WriteLine("Extracting frames from GIF using ffmpeg...");
-                    try
-                    {
-                        ProcessStartInfo psiExtract = new ProcessStartInfo
+                        if (totalDelay > 3.0)
                         {
-                            FileName = ffmpegPath,
-                            Arguments = extractCmd,
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            CreateNoWindow = true
-                        };
-                        using (Process proc = Process.Start(psiExtract))
-                        {
-                            string output = proc.StandardError.ReadToEnd();
-                            proc.WaitForExit();
-                            Console.WriteLine(output);
+                            Console.WriteLine("Error: Input GIF duration exceeds 3 seconds.");
+                            return;
                         }
+                        fps = (int)((totalDelay > 0) ? gifFrameCount / totalDelay : 10);
+                        Console.WriteLine($"Calculated FPS: {fps}");
+                        hasAlpha = true;
                     }
-                    catch (Exception ex)
+                    else if (extension == ".mp4")
                     {
-                        Console.WriteLine($"Error extracting frames from GIF: {ex.Message}");
-                        return;
-                    }
-                    // Get extracted frames and process them
-                    string[] extractedFrames;
-                    try
-                    {
-                        extractedFrames = Directory.GetFiles(tempFramesDir, "frame_*.png");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error reading extracted frames: {ex.Message}");
-                        return;
-                    }
-                    Array.Sort(extractedFrames); // Ensure proper order
-                    frameCount = extractedFrames.Length;
-                    Console.WriteLine($"Processing {frameCount} extracted frames...");
-
-                    // Process each extracted frame
-                    for (int i = 0; i < frameCount; i++)
-                    {
-                        string pngPath = extractedFrames[i];
-                        BitmapImage bitmap = null;
+                        // Get FPS and duration from MP4
+                        double duration = 0;
+                        int detectedFps = 10;
                         try
                         {
-                            bitmap = new BitmapImage();
-                            bitmap.BeginInit();
-                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                            bitmap.UriSource = new Uri(Path.GetFullPath(pngPath));
-                            bitmap.EndInit();
-                            bitmap.Freeze(); // Ensure the bitmap is frozen for better memory management
-                            // Convert to format with alpha channel
-                            FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-                            // Scale and pad to square
-                            BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth, addPadding);
-                            // Add border if required
-                            if (addBorder)
+                            string probeArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
+                            using (Process proc = Process.Start(new ProcessStartInfo
                             {
-                                scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex, blurRadius);
-                            }
-                            // Save processed frame
-                            string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
-                            try
+                                FileName = ffprobePath,
+                                Arguments = probeArgs,
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                CreateNoWindow = true
+                            }))
                             {
-                                SavePng(scaledBitmap, framePath);
+                                string output = proc.StandardOutput.ReadToEnd();
+                                proc.WaitForExit();
+                                double.TryParse(output.Trim(), out duration);
                             }
-                            catch (Exception ex)
+
+                            string fpsProbeArgs = $"-v 0 -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 \"{inputFile}\"";
+                            using (Process proc = Process.Start(new ProcessStartInfo
                             {
-                                Console.WriteLine($"Error saving PNG frame: {ex.Message}");
+                                FileName = ffprobePath,
+                                Arguments = fpsProbeArgs,
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                CreateNoWindow = true
+                            }))
+                            {
+                                string output = proc.StandardOutput.ReadToEnd();
+                                proc.WaitForExit();
+                                string fpsStr = output.Trim();
+                                if (fpsStr.Contains("/"))
+                                {
+                                    var parts = fpsStr.Split('/');
+                                    if (parts.Length == 2 && double.TryParse(parts[0], out double num) && double.TryParse(parts[1], out double denom) && denom != 0)
+                                    {
+                                        detectedFps = (int)Math.Round(num / denom);
+                                    }
+                                }
+                                else
+                                {
+                                    if (double.TryParse(fpsStr, out double fpsVal))
+                                        detectedFps = (int)Math.Round(fpsVal);
+                                }
                             }
-                            Console.WriteLine($"Processed and saved frame {i} to {framePath}");
+                        }
+                        catch
+                        {
+                            Console.WriteLine("Warning: Could not determine video properties. Using defaults.");
+                        }
+                        if (duration > 3.0)
+                        {
+                            Console.WriteLine("Warning: Input MP4 duration exceeds 3 seconds. Only first 3 seconds will be used.");
+                        }
+                        fps = detectedFps;
+                        hasAlpha = false;
+                    }
+                    else if (extension == ".avif")
+                    {
+                        // Detect if AVIF is animated using multiple methods
+                        int avifFrameCount = 1;
+                        double duration = 0;
+                        int detectedFps = 10;
+                        int animatedStreamIndex = -1; // Track which stream contains animation
+                        
+                        try
+                        {
+                            // Get duration first
+                            string probeArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
+                            using (Process proc = Process.Start(new ProcessStartInfo
+                            {
+                                FileName = ffprobePath,
+                                Arguments = probeArgs,
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                CreateNoWindow = true
+                            }))
+                            {
+                                string output = proc.StandardOutput.ReadToEnd();
+                                proc.WaitForExit();
+                                string trimmed = output.Trim();
+                                if (!string.IsNullOrEmpty(trimmed) && double.TryParse(trimmed, out double d) && d > 0)
+                                {
+                                    duration = d;
+                                    Console.WriteLine($"AVIF duration: {duration:F2} seconds");
+                                }
+                            }
+                            
+                            // Check all video streams for the one with highest FPS (animated stream)
+                            string allStreamsArgs = $"-v error -select_streams v -show_entries stream=index,r_frame_rate,nb_frames,nb_read_frames -of csv=p=0 \"{inputFile}\"";
+                            using (Process proc = Process.Start(new ProcessStartInfo
+                            {
+                                FileName = ffprobePath,
+                                Arguments = allStreamsArgs,
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                CreateNoWindow = true
+                            }))
+                            {
+                                string output = proc.StandardOutput.ReadToEnd();
+                                proc.WaitForExit();
+                                string[] streams = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                                
+                                double maxFps = 0;
+                                int maxFrames = 0;
+                                
+                                foreach (string stream in streams)
+                                {
+                                    string[] parts = stream.Split(',');
+                                    if (parts.Length >= 2)
+                                    {
+                                        // Parse stream index
+                                        int streamIdx = -1;
+                                        int.TryParse(parts[0], out streamIdx);
+                                        
+                                        // Parse FPS
+                                        string fpsStr = parts[1];
+                                        double streamFps = 0;
+                                        if (fpsStr.Contains("/"))
+                                        {
+                                            var fpsParts = fpsStr.Split('/');
+                                            if (fpsParts.Length == 2 && double.TryParse(fpsParts[0], out double num) && double.TryParse(fpsParts[1], out double denom) && denom != 0)
+                                            {
+                                                streamFps = num / denom;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            double.TryParse(fpsStr, out streamFps);
+                                        }
+                                        
+                                        // Parse frame count if available
+                                        int streamFrames = 0;
+                                        if (parts.Length >= 3)
+                                            int.TryParse(parts[2], out streamFrames);
+                                        if (parts.Length >= 4 && streamFrames == 0)
+                                            int.TryParse(parts[3], out streamFrames);
+                                        
+                                        // Select stream with highest FPS or frame count
+                                        if (streamFps > maxFps || (streamFps == maxFps && streamFrames > maxFrames))
+                                        {
+                                            maxFps = streamFps;
+                                            maxFrames = streamFrames;
+                                            animatedStreamIndex = streamIdx;
+                                            detectedFps = (int)Math.Round(streamFps);
+                                            if (streamFrames > 0)
+                                                avifFrameCount = streamFrames;
+                                        }
+                                        
+                                        Console.WriteLine($"Stream {streamIdx}: FPS={streamFps:F2}, Frames={streamFrames}");
+                                    }
+                                }
+                                
+                                if (animatedStreamIndex >= 0)
+                                {
+                                    Console.WriteLine($"Selected stream {animatedStreamIndex} with {detectedFps} FPS");
+                                }
+                            }
+                            
+                            // If we have duration but no frame count, calculate it
+                            if (duration > 0.1 && avifFrameCount == 1 && detectedFps > 1)
+                            {
+                                avifFrameCount = (int)Math.Round(duration * detectedFps);
+                                Console.WriteLine($"Calculated {avifFrameCount} frames from duration and FPS");
+                            }
+                            
+                            // If duration > 0, assume it's animated
+                            if (duration > 0.1 && avifFrameCount == 1)
+                            {
+                                Console.WriteLine("AVIF has duration > 0, treating as animated");
+                                avifFrameCount = 2;
+                            }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Error processing frame {i}: {ex.Message}");
+                            Console.WriteLine($"Warning: Could not determine AVIF properties: {ex.Message}");
                         }
-                        finally
+                        
+                        if (duration > 3.0)
                         {
-                            if (bitmap != null)
-                            {
-                                bitmap = null;
-                            }
+                            Console.WriteLine("Warning: Input AVIF duration exceeds 3 seconds. Only first 3 seconds will be used.");
+                        }
+                        
+                        fps = (avifFrameCount > 1 || duration > 0.1) ? Math.Max(detectedFps, 1) : 1;
+                        Console.WriteLine($"AVIF processing: {avifFrameCount} frames, {fps} FPS, {duration:F2}s duration, stream index: {animatedStreamIndex}");
+                        hasAlpha = true;
+                        
+                        // Store animated stream index for extraction
+                        if (animatedStreamIndex >= 0)
+                        {
+                            tempFramesDir = $"{Path.Combine(framesDir, "temp")}|{animatedStreamIndex}";
                         }
                     }
 
-                    // Force garbage collection to ensure resources are released
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
-
-                    // Cleanup temporary frames
-                    try
+                    // Extract frames using ffmpeg
+                    string extractCmd;
+                    if (extension == ".gif")
                     {
-                        Directory.Delete(tempFramesDir, true);
+                        extractCmd = $"-y -i \"{inputFile}\" \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                     }
-                    catch (IOException ex)
+                    else if (extension == ".mp4")
                     {
-                        Console.WriteLine($"Warning: Could not delete temporary directory: {ex.Message}");
-                        // Continue execution even if cleanup fails
+                        extractCmd = $"-y -i \"{inputFile}\" -t 3 -vf fps={fps} \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                     }
-                    catch (Exception ex)
+                    else // AVIF
                     {
-                        Console.WriteLine($"Error deleting temporary directory: {ex.Message}");
-                    }
-                }
-                else if (inputPngs != null)
-                {
-                    frameCount = inputPngs.Length;
-                    Console.WriteLine($"Found {frameCount} PNG files.");
-
-                    // Process each PNG file: scale and save as PNG
-                    for (int i = 0; i < frameCount; i++)
-                    {
-                        string pngPath = inputPngs[i];
-                        string fullPath = Path.GetFullPath(pngPath);
-                        BitmapImage bitmap = new BitmapImage(new Uri(fullPath));
-
-                        // Convert frame to format with alpha channel (Bgra32)
-                        FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-
-                        BitmapSource processedBitmap;
-                        // If the image is square, scale it proportionally
-                        if (formattedFrame.PixelWidth == formattedFrame.PixelHeight)
+                        // Extract stream index if stored in tempFramesDir
+                        string actualTempDir = tempFramesDir;
+                        string streamSelector = "";
+                        int colorStreamIdx = -1;
+                        int alphaStreamIdx = -1;
+                        
+                        if (tempFramesDir.Contains("|"))
                         {
-                            if (formattedFrame.PixelWidth == targetWidth)
+                            string[] parts = tempFramesDir.Split('|');
+                            actualTempDir = parts[0];
+                            if (parts.Length > 1 && int.TryParse(parts[1], out int streamIdx))
                             {
-                                processedBitmap = formattedFrame;
+                                colorStreamIdx = streamIdx;
+                                // Alpha stream is typically color stream + 1 in AVIF
+                                alphaStreamIdx = streamIdx + 1;
+                                Console.WriteLine($"Using color stream: {colorStreamIdx}, alpha stream: {alphaStreamIdx}");
                             }
-                            else
-                            {
-                                processedBitmap = ScaleProportional(formattedFrame, targetWidth);
-                            }
+                        }
+                        
+                        // Recreate temp directory with correct path
+                        if (actualTempDir != tempFramesDir)
+                        {
+                            tempFramesDir = actualTempDir;
+                            if (Directory.Exists(tempFramesDir))
+                                Directory.Delete(tempFramesDir, true);
+                            Directory.CreateDirectory(tempFramesDir);
+                        }
+                        
+                        // For AVIF with alpha, we need to use alpha extraction filter
+                        // AVIF stores color and alpha as separate streams that need to be combined
+                        if (colorStreamIdx >= 0 && alphaStreamIdx >= 0)
+                        {
+                            // Use alphamerge filter to combine color and alpha streams
+                            // Limit to 3 seconds and use proper frame rate control
+                            extractCmd = $"-y -i \"{inputFile}\" -t 3 -filter_complex \"[0:{colorStreamIdx}][0:{alphaStreamIdx}]alphamerge[out]\" -map \"[out]\" -r {fps} -pix_fmt rgba \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                         }
                         else
                         {
-                            // Proportional scaling and padding to square
-                            processedBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth, addPadding);
+                            // Fallback: try default extraction with 3 second limit
+                            extractCmd = $"-y -i \"{inputFile}\" -t 3 -r {fps} -pix_fmt rgba \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                         }
+                    }
 
-                        // Add border if required
-                        if (addBorder)
-                        {
-                            processedBitmap = AddBorder(processedBitmap, borderSize, borderColorHex, blurRadius);
-                        }
-
-                        // Save frame as PNG
-                        string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
-                        SavePng(processedBitmap, framePath);
-                        Console.WriteLine($"Saved frame {i} to {framePath}");
-                    }
-                }
-                else if (inputMp4 != null)
-                {
-                    // Get duration and fps using ffprobe
-                    string ffprobePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffprobe.exe");
-                    double duration = 0;
-                    int detectedFps = 10;
-                    try
-                    {
-                        // Get duration
-                        string probeArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputMp4}\"";
-                        ProcessStartInfo psiProbe = new ProcessStartInfo
-                        {
-                            FileName = ffprobePath,
-                            Arguments = probeArgs,
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            CreateNoWindow = true
-                        };
-                        using (Process proc = Process.Start(psiProbe))
-                        {
-                            string output = proc.StandardOutput.ReadToEnd();
-                            proc.WaitForExit();
-                            double.TryParse(output.Trim(), out duration);
-                        }
-                        // Get fps
-                        string fpsProbeArgs = $"-v 0 -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 \"{inputMp4}\"";
-                        ProcessStartInfo psiFpsProbe = new ProcessStartInfo
-                        {
-                            FileName = ffprobePath,
-                            Arguments = fpsProbeArgs,
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            CreateNoWindow = true
-                        };
-                        using (Process proc = Process.Start(psiFpsProbe))
-                        {
-                            string output = proc.StandardOutput.ReadToEnd();
-                            proc.WaitForExit();
-                            string fpsStr = output.Trim();
-                            if (fpsStr.Contains("/"))
-                            {
-                                var parts = fpsStr.Split('/');
-                                if (parts.Length == 2 && double.TryParse(parts[0], out double num) && double.TryParse(parts[1], out double denom) && denom != 0)
-                                {
-                                    detectedFps = (int)Math.Round(num / denom);
-                                }
-                            }
-                            else
-                            {
-                                double.TryParse(fpsStr, out double fpsVal);
-                                detectedFps = (int)Math.Round(fpsVal);
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Warning: Could not determine video duration or FPS. Using defaults.");
-                    }
-                    if (duration > 3.0)
-                    {
-                        Console.WriteLine("Warning: Input MP4 duration exceeds 3 seconds. Only first 3 seconds will be used.");
-                    }
-                    fps = detectedFps;
-                    // Extract frames using ffmpeg, only first 3 seconds
-                    string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-                    string tempFramesDir = Path.Combine(framesDir, "temp");
-                    Directory.CreateDirectory(tempFramesDir);
-                    string extractCmd = $"-y -i \"{inputMp4}\" -t 3 -vf fps={fps} \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
-                    Console.WriteLine($"Extracting frames from MP4 using ffmpeg at {fps} FPS...");
-                    ProcessStartInfo psiExtract = new ProcessStartInfo
+                    Console.WriteLine($"Extracting frames from {extension.ToUpper()} using ffmpeg...");
+                    Console.WriteLine($"Command: {extractCmd}");
+                    using (Process proc = Process.Start(new ProcessStartInfo
                     {
                         FileName = ffmpegPath,
                         Arguments = extractCmd,
@@ -511,53 +546,60 @@ namespace GifToWebM
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true
-                    };
-                    using (Process proc = Process.Start(psiExtract))
+                    }))
                     {
                         string output = proc.StandardError.ReadToEnd();
                         proc.WaitForExit();
                         Console.WriteLine(output);
                     }
-                    // Get extracted frames and process them
-                    string[] extractedFrames = Directory.GetFiles(tempFramesDir, "frame_*.png");
-                    Array.Sort(extractedFrames); // Ensure proper order
-                    frameCount = extractedFrames.Length;
-                    Console.WriteLine($"Processing {frameCount} extracted frames...");
-                    for (int i = 0; i < frameCount; i++)
+
+                    framesToProcess = Directory.GetFiles(tempFramesDir, "frame_*.png");
+                    Array.Sort(framesToProcess);
+                    frameCount = framesToProcess.Length;
+                    
+                    // For AVIF, recalculate FPS based on actual extracted frames
+                    if (extension == ".avif" && frameCount > 1)
                     {
-                        string pngPath = extractedFrames[i];
-                        BitmapImage bitmap = null;
-                        try
+                        // If we got more frames than expected, recalculate FPS
+                        Console.WriteLine($"Extracted {frameCount} frames from AVIF");
+                        if (frameCount > 1)
                         {
-                            bitmap = new BitmapImage();
-                            bitmap.BeginInit();
-                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                            bitmap.UriSource = new Uri(Path.GetFullPath(pngPath));
-                            bitmap.EndInit();
-                            bitmap.Freeze();
-                            // Transparency is not relevant for mp4
-                            FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, PixelFormats.Bgr32, null, 0);
-                            BitmapSource scaledBitmap = ScaleAndPadToSquare(formattedFrame, targetWidth, addPadding);
-                            if (addBorder)
+                            // Try to get more accurate duration if available
+                            try
                             {
-                                scaledBitmap = AddBorder(scaledBitmap, borderSize, borderColorHex, blurRadius);
+                                string durationArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
+                                using (Process proc = Process.Start(new ProcessStartInfo
+                                {
+                                    FileName = ffprobePath,
+                                    Arguments = durationArgs,
+                                    UseShellExecute = false,
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    CreateNoWindow = true
+                                }))
+                                {
+                                    string output = proc.StandardOutput.ReadToEnd();
+                                    proc.WaitForExit();
+                                    if (double.TryParse(output.Trim(), out double actualDuration) && actualDuration > 0)
+                                    {
+                                        fps = (int)Math.Round(frameCount / actualDuration);
+                                        Console.WriteLine($"Recalculated FPS based on extracted frames: {fps}");
+                                    }
+                                }
                             }
-                            string framePath = Path.Combine(framesDir, $"frame_{i:000}.png");
-                            SavePng(scaledBitmap, framePath);
-                            Console.WriteLine($"Processed and saved frame {i} to {framePath}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error processing frame {i}: {ex.Message}");
-                        }
-                        finally
-                        {
-                            if (bitmap != null)
-                            {
-                                bitmap = null;
-                            }
+                            catch { }
                         }
                     }
+                    
+                    Console.WriteLine($"Processing {frameCount} extracted frames...");
+                }
+
+                // Process frames using WPF imaging (preserves quality with alpha channel)
+                ProcessFrames(framesToProcess, framesDir, hasAlpha, targetWidth, addPadding, addBorder, borderSize, borderColorHex, blurRadius);
+
+                // Cleanup temporary directory
+                if (tempFramesDir != null)
+                {
                     GC.Collect();
                     GC.WaitForPendingFinalizers();
                     try
@@ -577,9 +619,10 @@ namespace GifToWebM
             catch (Exception ex)
             {
                 Console.WriteLine($"Critical error: {ex.Message}");
+                return;
             }
 
-            // Build ffmpeg command; ffmpeg.exe should be in the same folder as the application
+            // Build ffmpeg command
             string ffmpegPathForVideo = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
             string argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -crf {crf} \"{outputVideo}\"";
 
@@ -588,7 +631,7 @@ namespace GifToWebM
             while (true)
             {
                 Console.WriteLine($"Running ffmpeg with CRF {crf} to create video...");
-                ProcessStartInfo psi = new ProcessStartInfo
+                using (Process proc = Process.Start(new ProcessStartInfo
                 {
                     FileName = ffmpegPathForVideo,
                     Arguments = argumentsStr,
@@ -596,9 +639,7 @@ namespace GifToWebM
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true
-                };
-
-                using (Process proc = Process.Start(psi))
+                }))
                 {
                     string output = proc.StandardError.ReadToEnd();
                     proc.WaitForExit();
@@ -618,6 +659,61 @@ namespace GifToWebM
             Console.WriteLine("Video created: " + outputVideo);
             Console.WriteLine("Press any key to exit.");
             Console.ReadKey();
+        }
+
+        static void ProcessFrames(string[] sourceFrames, string outputDir, bool hasAlpha, int targetSize, bool addPadding, bool addBorder, int borderSize, string borderColorHex, int blurRadius)
+        {
+            for (int i = 0; i < sourceFrames.Length; i++)
+            {
+                string pngPath = sourceFrames[i];
+                BitmapImage bitmap = null;
+                try
+                {
+                    bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.UriSource = new Uri(Path.GetFullPath(pngPath));
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    PixelFormat pixelFormat = hasAlpha ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
+                    FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, pixelFormat, null, 0);
+
+                    BitmapSource processedBitmap;
+                    if (formattedFrame.PixelWidth == formattedFrame.PixelHeight && formattedFrame.PixelWidth == targetSize)
+                    {
+                        processedBitmap = formattedFrame;
+                    }
+                    else if (formattedFrame.PixelWidth == formattedFrame.PixelHeight)
+                    {
+                        processedBitmap = ScaleProportional(formattedFrame, targetSize);
+                    }
+                    else
+                    {
+                        processedBitmap = ScaleAndPadToSquare(formattedFrame, targetSize, addPadding);
+                    }
+
+                    if (addBorder)
+                    {
+                        processedBitmap = AddBorder(processedBitmap, borderSize, borderColorHex, blurRadius);
+                    }
+
+                    string framePath = Path.Combine(outputDir, $"frame_{i:000}.png");
+                    SavePng(processedBitmap, framePath);
+                    Console.WriteLine($"Processed and saved frame {i} to {framePath}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error processing frame {i}: {ex.Message}");
+                }
+                finally
+                {
+                    if (bitmap != null)
+                    {
+                        bitmap = null;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -800,14 +896,14 @@ namespace GifToWebM
         {
             Console.WriteLine("Usage: converter.exe [options]");
             Console.WriteLine("Options:");
-            Console.WriteLine("  -i, --input <file>       Input GIF file or PNG file (for directory of PNGs)");
-            Console.WriteLine("  -o, --output <file>      Output WebM file");
+            Console.WriteLine("  -i, --input <file>       Input file: GIF, MP4, AVIF, or PNG (for directory of PNGs)");
+            Console.WriteLine("  -o, --output <file>      Output WebM file (default: output.webm)");
             Console.WriteLine("  -c, --crf-step <value>   CRF step value (default: 2)");
             Console.WriteLine("  -b, --border             Add border to frames");
             Console.WriteLine("      --border-size <value> Border size in pixels (default: 2)");
             Console.WriteLine("      --border-color <hex>  Border color in hex (default: #FFFFFF)");
-            Console.WriteLine("      --blur <value>        Border blur radius (integer, no default, required value)");
-            Console.WriteLine("      --fps <value>         FPS value (default: 10). Autocalculated for gif");
+            Console.WriteLine("      --blur <value>        Border blur radius (integer, default: 0)");
+            Console.WriteLine("      --fps <value>         FPS value (default: 10, auto-calculated for GIF)");
             Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
             Console.WriteLine("  -p, --pad                Add padding to square canvas (default: disabled)");
             Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");
