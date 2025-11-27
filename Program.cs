@@ -35,6 +35,7 @@ namespace GifToWebM
             bool emojiMode = false;
             int blurRadius = 0;
             bool addPadding = false;
+            bool userSetFps = false; // Track if user explicitly set FPS
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -119,6 +120,7 @@ namespace GifToWebM
                         if (i + 1 < args.Length && int.TryParse(args[++i], out int inputFps))
                         {
                             fps = inputFps;
+                            userSetFps = true;
                         }
                         else
                         {
@@ -282,8 +284,16 @@ namespace GifToWebM
                             Console.WriteLine("Error: Input GIF duration exceeds 3 seconds.");
                             return;
                         }
-                        fps = (int)((totalDelay > 0) ? gifFrameCount / totalDelay : 10);
-                        Console.WriteLine($"Calculated FPS: {fps}");
+                        // Only calculate FPS if user didn't explicitly set it
+                        if (!userSetFps)
+                        {
+                            fps = (int)((totalDelay > 0) ? gifFrameCount / totalDelay : 10);
+                            Console.WriteLine($"Calculated FPS: {fps}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Using user-specified FPS: {fps}");
+                        }
                         hasAlpha = true;
                     }
                     else if (extension == ".mp4")
