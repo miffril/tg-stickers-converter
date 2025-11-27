@@ -492,7 +492,7 @@ namespace GifToWebM
                     string extractCmd;
                     if (extension == ".gif")
                     {
-                        extractCmd = $"-y -i \"{inputFile}\" \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
+                        extractCmd = $"-y -r {fps} -i \"{inputFile}\" \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                     }
                     else if (extension == ".mp4")
                     {

@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced help message to include AVIF in supported formats list
 - **Output filename now automatically generated from input filename when `--output` is not specified**
 
+### Fixed
+- **Fixed GIF output duration issue**: GIF frame extraction now correctly uses calculated FPS
+
 ## [0.4.1] - 2025-01-XX
 
 ### Changed
