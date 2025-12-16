@@ -67,6 +67,7 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="CHANGELOG.md" />
+    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ffmpeg.exe">
