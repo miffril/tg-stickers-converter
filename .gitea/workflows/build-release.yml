@@ -33,23 +33,54 @@ jobs:
         GITEA_TOKEN: ${{ secrets.TOKEN }}
       shell: powershell
       run: |
+        $ErrorActionPreference = "Stop"
+        
         $ref = "${{ gitea.ref }}"
         $tag = $ref -replace '^refs/tags/', ''
+        Write-Host "Processing tag: $tag"
 
         $fileName = "converter-$tag.zip"
 
-        $repo = "${{ gitea.repository }}" # user/repo
-        $owner, $name = $repo -split '/'
-
-        # URL Gitea
+        $repo = "${{ gitea.repository }}"
         $base = "${{ vars.URL }}"
 
-        $releaseInfo = Invoke-RestMethod -Headers @{ Authorization = "token $env:GITEA_TOKEN" } `
-          -Uri "$base/api/v1/repos/$repo/releases/tags/$tag" `
-          -Method Get
+        # Try to get existing release
+        try {
+          $releaseInfo = Invoke-RestMethod -Headers @{ Authorization = "token $env:GITEA_TOKEN" } `
+            -Uri "$base/api/v1/repos/$repo/releases/tags/$tag" `
+            -Method Get
+          Write-Host "Release found: $($releaseInfo.id)"
+        } catch {
+          # If release not found, create a new one
+          Write-Host "Release not found, creating new one..."
+          $releaseData = @{
+            tag_name = $tag
+            name = $tag
+            body = "Release $tag"
+            draft = $false
+            prerelease = $false
+          } | ConvertTo-Json
+
+          $releaseInfo = Invoke-RestMethod -Headers @{ 
+            Authorization = "token $env:GITEA_TOKEN"
+            "Content-Type" = "application/json"
+          } -Uri "$base/api/v1/repos/$repo/releases" `
+            -Method Post `
+            -Body $releaseData
+          Write-Host "Release created: $($releaseInfo.id)"
+        }
 
         $releaseId = $releaseInfo.id
 
+        # Upload file
         $apiUrl = "$base/api/v1/repos/$repo/releases/$releaseId/assets?name=$fileName"
-
-        curl -s -X POST -H "Authorization: token $env:GITEA_TOKEN" -F "attachment=@$fileName" $apiUrl
+        
+        $filePath = Resolve-Path $fileName
+        
+        Invoke-RestMethod -Headers @{ Authorization = "token $env:GITEA_TOKEN" } `
+          -Uri $apiUrl `
+          -Method Post `
+          -InFile $filePath `
+          -ContentType "application/zip"
+        
+        Write-Host "File successfully uploaded to release"
