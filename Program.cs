@@ -696,13 +696,9 @@ namespace GifToWebM
                     FormatConvertedBitmap formattedFrame = new FormatConvertedBitmap(bitmap, pixelFormat, null, 0);
 
                     BitmapSource processedBitmap;
-                    if (formattedFrame.PixelWidth == formattedFrame.PixelHeight && formattedFrame.PixelWidth == targetSize)
+                    if (formattedFrame.PixelWidth == targetSize && formattedFrame.PixelHeight == targetSize)
                     {
                         processedBitmap = formattedFrame;
-                    }
-                    else if (formattedFrame.PixelWidth == formattedFrame.PixelHeight)
-                    {
-                        processedBitmap = ScaleProportional(formattedFrame, targetSize);
                     }
                     else
                     {
@@ -924,17 +920,6 @@ namespace GifToWebM
             Console.WriteLine("  -p, --pad                Add padding to square canvas (default: disabled)");
             Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");
             Console.WriteLine("  -h, --help               Display this help message");
-        }
-
-        // Helper function to calculate proportional scale
-        static TransformedBitmap ScaleProportional(BitmapSource source, int maxSize)
-        {
-            int srcWidth = source.PixelWidth;
-            int srcHeight = source.PixelHeight;
-            double scale = (double)maxSize / Math.Max(srcWidth, srcHeight);
-            double scaleX = scale;
-            double scaleY = scale;
-            return new TransformedBitmap(source, new ScaleTransform(scaleX, scaleY));
         }
 
         // Helper function to calculate proportional scale with optional padding
