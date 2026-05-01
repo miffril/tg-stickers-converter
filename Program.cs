@@ -29,13 +29,15 @@ namespace GifToWebM
             bool addBorder = false;
             int borderSize = 2;
             string borderColorHex = "#FFFFFF";
-            int fps = 10;
+            int fps = 10; // Input/intermediate FPS for frame extraction
+            int targetFps = 30; // Output FPS for WebM (Telegram requirement)
             int targetWidth = 512;
             int targetHeight = 512;
             bool emojiMode = false;
             int blurRadius = 0;
             bool addPadding = false;
-            bool userSetFps = false; // Track if user explicitly set FPS
+            bool userSetFps = false; // Track if user explicitly set input FPS
+            bool userSetTargetFps = false; // Track if user explicitly set target FPS
 
             // Parse command-line arguments
             for (int i = 0; i < args.Length; i++)
@@ -117,6 +119,7 @@ namespace GifToWebM
                         }
                         break;
                     case "--fps":
+                    case "--input-fps":
                         if (i + 1 < args.Length && int.TryParse(args[++i], out int inputFps))
                         {
                             fps = inputFps;
@@ -124,7 +127,20 @@ namespace GifToWebM
                         }
                         else
                         {
-                            Console.WriteLine("Error: Missing value for FPS.");
+                            Console.WriteLine("Error: Missing value for input FPS.");
+                            return;
+                        }
+                        break;
+                    case "--target-fps":
+                    case "--output-fps":
+                        if (i + 1 < args.Length && int.TryParse(args[++i], out int outFps))
+                        {
+                            targetFps = outFps;
+                            userSetTargetFps = true;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error: Missing value for target FPS.");
                             return;
                         }
                         break;
@@ -640,13 +656,25 @@ namespace GifToWebM
 
             // Build ffmpeg command
             string ffmpegPathForVideo = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-            string argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -crf {crf} \"{outputVideo}\"";
+
+            // Inform user about FPS settings
+            Console.WriteLine($"Input FPS: {fps}, Target output FPS: {targetFps}");
+            if (targetFps != 30 && userSetTargetFps)
+            {
+                Console.WriteLine("Warning: Telegram requires 30 FPS for optimal compatibility (especially on iOS).");
+            }
+            if (fps != targetFps)
+            {
+                Console.WriteLine($"FFmpeg will convert from {fps} FPS to {targetFps} FPS.");
+            }
+
+            string argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -r {targetFps} -crf {crf} \"{outputVideo}\"";
 
             int maxOutputSize = emojiMode ? 64 * 1024 : 256 * 1024;
 
             while (true)
             {
-                Console.WriteLine($"Running ffmpeg with CRF {crf} to create video...");
+                Console.WriteLine($"Running ffmpeg with CRF {crf} to create video at {targetFps} FPS...");
                 using (Process proc = Process.Start(new ProcessStartInfo
                 {
                     FileName = ffmpegPathForVideo,
@@ -669,7 +697,7 @@ namespace GifToWebM
                 }
 
                 crf += crfStep;
-                argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -crf {crf} \"{outputVideo}\"";
+                argumentsStr = $"-y -framerate {fps} -i \"{Path.Combine(framesDir, "frame_%03d.png")}\" -c:v libvpx-vp9 -pix_fmt yuva420p -r {targetFps} -crf {crf} \"{outputVideo}\"";
             }
 
             Console.WriteLine("Video created: " + outputVideo);
@@ -915,7 +943,10 @@ namespace GifToWebM
             Console.WriteLine("      --border-size <value> Border size in pixels (default: 2)");
             Console.WriteLine("      --border-color <hex>  Border color in hex (default: #FFFFFF)");
             Console.WriteLine("      --blur <value>        Border blur radius (integer, default: 0)");
-            Console.WriteLine("      --fps <value>         FPS value (default: 10, auto-calculated for GIF)");
+            Console.WriteLine("      --fps, --input-fps <value>");
+            Console.WriteLine("                           Input FPS for frame extraction (default: 10, auto-calculated for GIF/MP4/AVIF)");
+            Console.WriteLine("      --target-fps, --output-fps <value>");
+            Console.WriteLine("                           Target output FPS for WebM (default: 30, Telegram standard)");
             Console.WriteLine("  -s, --size <value>       Target size in pixels (default: 512, 1:1 aspect ratio)");
             Console.WriteLine("  -p, --pad                Add padding to square canvas (default: disabled)");
             Console.WriteLine("  -e, --emoji              Set target size to 100x100 for emoji output");

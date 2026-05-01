@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Separate FPS control parameters**:
+  - `--fps` / `--input-fps`: Controls frame extraction FPS (default: 10, auto-detected for GIF/MP4/AVIF)
+  - `--target-fps` / `--output-fps`: Controls output WebM FPS (default: 30)
+- Improved user feedback: Shows both input and target FPS during conversion
+- Warning message when using non-standard target FPS (not 30)
+
+### Changed
+- **Output WebM now defaults to 30 FPS** (Telegram standard, iOS requirement)
+- FFmpeg command now uses `-r {targetFps}` to enforce output framerate
+- `--fps` parameter is now an alias for `--input-fps` (backward compatible)
+- Updated help text to clarify FPS parameter purposes
+
+### Fixed
+- **Fixed iOS Telegram playback issue**: Videos with 60+ FPS no longer play slower on iOS
+- Videos now maintain correct playback speed regardless of source FPS
+
+## [0.5.0] - 2025-16-12
+
+### Added
 - **AVIF format support**: Full support for both static and animated AVIF files
   - Multi-stream detection: Automatically identifies animated streams in AVIF containers
   - Alpha channel support: Merges separate color and alpha streams using `alphamerge` filter

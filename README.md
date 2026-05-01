@@ -42,7 +42,8 @@ Converter.exe [options]
 | `--border-size`      | Border thickness in pixels (default: `2`)           |
 | `--border-color`     | Border color hex (default: `#FFFFFF`)               |
 | `--blur <value>`     | Border blur radius (integer, required value; default: no blur) |
-| `--fps`              | Set FPS for output video (default: `10`). Autocalculated for GIFs/AVIF, original for MP4 |
+| `--fps`, `--input-fps` | Input FPS for frame extraction (default: `10`). Auto-calculated for GIF/MP4/AVIF |
+| `--target-fps`, `--output-fps` | Target output FPS for WebM (default: `30`, Telegram standard) |
 | `-s`, `--size`       | Target size in pixels for longest side (default: `512`) |
 | `-p`, `--pad`        | Add padding to square canvas (default: disabled)    |
 | `-e`, `--emoji`      | Set target size to 100x100 for emoji output        |
@@ -102,12 +103,57 @@ Converter.exe -i animation.gif -b --blur 2
 
 Convert PNG sequence with custom FPS:
 ```
-Converter.exe -i "first_frame.png" --fps 15
+Converter.exe -i "first_frame.png" --input-fps 24 --target-fps 30
+```
+
+Convert 60 FPS video to Telegram-compatible 30 FPS:
+```
+Converter.exe -i video60fps.mp4
+```
+
+Convert with custom output FPS (not recommended for Telegram):
+```
+Converter.exe -i animation.gif --target-fps 60
 ```
 
 Show help:
 ```
 Converter.exe --help
+```
+
+## FPS Handling
+
+The converter now separates **input FPS** (for frame extraction) and **target FPS** (for output):
+
+### Input FPS (`--fps` / `--input-fps`)
+Controls how frames are extracted from the source file:
+- **GIF**: Auto-calculated from frame delays in metadata
+- **MP4**: Auto-detected using ffprobe
+- **AVIF**: Auto-detected from stream metadata
+- **PNG sequence**: Default 10 FPS, or user-specified
+- Can be overridden with `--input-fps` parameter
+
+### Target FPS (`--target-fps` / `--output-fps`)
+Controls the output WebM framerate:
+- **Default: 30 FPS** (Telegram standard)
+- **Critical for iOS**: Telegram on iOS strictly requires 30 FPS
+  - 60 FPS videos play 2x slower on iOS
+  - Other framerates may cause playback issues
+- FFmpeg automatically adjusts frames:
+  - **Higher input FPS** (e.g., 60 → 30): Drops frames
+  - **Lower input FPS** (e.g., 15 → 30): Duplicates frames
+  - **Duration remains unchanged**
+
+### Example FPS Conversion
+```bash
+# 60 FPS source → 30 FPS output (standard case)
+Converter.exe -i video60fps.mp4
+# Output: Input FPS: 60, Target output FPS: 30
+# FFmpeg will drop every other frame
+
+# Custom frame extraction with standard output
+Converter.exe -i video.mp4 --input-fps 15 --target-fps 30
+# Extracts 15 FPS, outputs 30 FPS (frames duplicated)
 ```
 
 ## AVIF Support Details
@@ -123,9 +169,11 @@ The converter fully supports animated AVIF files:
 ## Notes
 
 - **Input GIFs, MP4s, and AVIFs longer than 3 seconds will be trimmed to the first 3 seconds.**
-- For MP4 input, the original FPS is detected and used for output unless overridden by `--fps`.
+- **Output videos are always encoded at 30 FPS by default** (Telegram standard, iOS requirement).
+- For MP4 input, the original FPS is detected and used for frame extraction.
 - For AVIF input, FPS is auto-detected from stream metadata.
-- **If no output filename is specified, the output file is named after the input file with .webm extension** (e.g., `animation.gif` ? `animation.webm`).
+- Use `--target-fps` to override output FPS (not recommended for Telegram stickers/emoji).
+- **If no output filename is specified, the output file is named after the input file with .webm extension** (e.g., `animation.gif` → `animation.webm`).
 - Intermediate frames are saved as PNGs in a `frames/` directory (automatically cleaned).
 - The `-s`/`--size` parameter sets the longest side to the specified value, preserving the original aspect ratio.
 - By default, images are scaled to fit the target size without padding. Use `--pad` to center images on a square transparent canvas.
