@@ -80,6 +80,50 @@ Three-phase pixel manipulation (see `AddBorder()`):
 3. **Blur mask** (optional): Box blur over `blurRadius` neighborhood
 4. **Composite**: Alpha blend original over border using standard formula
 
+### iOS Chroma Artifacts Workaround (PERMANENT HACK)
+**Problem**: Green/purple color bands appear at **top edge** of non-square videos on iOS Telegram.
+
+**Root cause**:
+- Telegram requires yuv420p (4:2:0 chroma subsampling)
+- Fast color transitions at video edges + chroma subsampling = color artifacts
+- iOS decoder is strictest (Android/Desktop more forgiving)
+- Artifacts appear specifically at **top boundary** where animation meets edge
+
+**Workaround (tested and confirmed working)**:
+```csharp
+// In ScaleAndPadToSquare when addPadding=false:
+const int topPadding = 2; // Hardcoded, sufficient for fix
+if (scaledHeight + topPadding <= targetSize) {
+    // Add 2px transparent padding at top
+    // Draw image at offset (0, topPadding) instead of (0, 0)
+}
+```
+
+**Why this works**:
+- Moves content 2px away from problematic top edge
+- Top edge now has uniform transparent/black pixels (no color transitions)
+- Chroma subsampling doesn't create artifacts on uniform colors
+- 2px is invisible (< 0.4% of typical 512px height) but technically sufficient
+- Tested on actual iOS Telegram app - artifacts eliminated
+
+**Implementation notes**:
+- Only applies when `--pad` is NOT used (full padding handles edges differently)
+- Does not apply if `height + 2 > targetSize` (no room available)
+- Uses `const int topPadding = 2` (not configurable via CLI)
+- Creates transparent padding via WPF `DrawingVisual`
+- FFmpeg may optimize away alpha channel if all padding is transparent
+
+**Alternative user workarounds**:
+- `--pad`: Full padding on all sides (centers content on square canvas)
+- `--border`: Adds solid color border (moves content away from all edges)
+- Both alternatives work but are more visible than 2px top padding
+
+**Why it's a workaround, not a fix**:
+- Root cause is Telegram's yuv420p limitation (can't use yuv444p)
+- yuv420p inherently has chroma subsampling issues at edges
+- We can only move content away from edges, not fix yuv420p itself
+- Perfect solution would require Telegram to support yuv444p (not happening)
+
 ## Code Conventions
 
 ### Change Documentation
@@ -183,3 +227,5 @@ No unit tests. Manual testing workflow:
 - **AVIF streams**: Color/alpha are separate - must use alphamerge filter
 - **Temp directory cleanup**: Call `GC.Collect()` before deleting (releases file handles)
 - **PNG sequence mode**: Requires one `.png` input; scans directory for all PNGs
+- **iOS chroma artifacts**: 2px top padding workaround is permanent - don't remove without iOS testing
+- **Modifying topPadding**: Changing from 2px may make padding visible or insufficient

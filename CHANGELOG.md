@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **[WORKAROUND] iOS chroma artifacts**: Added automatic 2px top padding for non-square videos
+  - **Problem**: Green/purple bands appear at top edge on iOS Telegram due to yuv420p chroma subsampling
+  - **Solution**: Adds 2px transparent padding at top (moves content away from problematic edge)
+  - **When applied**: Only when `--pad` flag is NOT used
+  - **Visibility**: 2px offset is invisible to human eye but sufficient to prevent artifacts
+  - **Limitations**: Does not apply if resulting height would exceed target size
+  - **Why workaround**: Root cause is Telegram's yuv420p requirement + iOS strict decoder
+  - **Tested**: Confirmed to fix artifacts on actual iOS Telegram app
+
 ### Added
 - **Separate FPS control parameters**:
   - `--fps` / `--input-fps`: Controls frame extraction FPS (default: 10, auto-detected for GIF/MP4/AVIF)
@@ -19,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FFmpeg command now uses `-r {targetFps}` to enforce output framerate
 - `--fps` parameter is now an alias for `--input-fps` (backward compatible)
 - Updated help text to clarify FPS parameter purposes
+- **ScaleAndPadToSquare behavior**: Now adds 2px top padding by default (when addPadding=false)
 
 ### Fixed
 - **Fixed iOS Telegram playback issue**: Videos with 60+ FPS no longer play slower on iOS

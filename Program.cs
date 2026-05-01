@@ -622,11 +622,12 @@ namespace GifToWebM
                             catch { }
                         }
                     }
-                    
+
                     Console.WriteLine($"Processing {frameCount} extracted frames...");
                 }
 
                 // Process frames using WPF imaging (preserves quality with alpha channel)
+                // WORKAROUND: ScaleAndPadToSquare adds 2px top padding by default to fix iOS chroma artifacts
                 ProcessFrames(framesToProcess, framesDir, hasAlpha, targetWidth, addPadding, addBorder, borderSize, borderColorHex, blurRadius);
 
                 // Cleanup temporary directory
@@ -953,14 +954,19 @@ namespace GifToWebM
             Console.WriteLine("  -h, --help               Display this help message");
         }
 
-        // Helper function to calculate proportional scale with optional padding
-        // Scales image so that one side equals targetSize and the other is <= targetSize
-        // If addPadding is true, centers the image on a square transparent canvas
+        /// <summary>
+        /// Scales and optionally pads a BitmapSource to fit within targetSize while preserving aspect ratio.
+        /// </summary>
+        /// <remarks>
+        /// WORKAROUND for iOS chroma artifacts: When addPadding=false, adds 2px transparent padding at top.
+        /// This moves content away from the top edge where iOS Telegram shows green/purple chroma artifacts
+        /// due to yuv420p subsampling. The 2px offset is invisible but sufficient to prevent artifacts.
+        /// </remarks>
         static BitmapSource ScaleAndPadToSquare(BitmapSource source, int targetSize, bool addPadding = false)
         {
             int srcWidth = source.PixelWidth;
             int srcHeight = source.PixelHeight;
-            
+
             // Calculate scale so that the larger dimension equals targetSize
             double scale = (double)targetSize / Math.Max(srcWidth, srcHeight);
             int scaledWidth = (int)Math.Round(srcWidth * scale);
@@ -969,15 +975,35 @@ namespace GifToWebM
             // Scale the image proportionally
             TransformedBitmap scaled = new TransformedBitmap(source, new ScaleTransform(scale, scale));
 
-            // If padding is disabled, return scaled image without padding
+            // WORKAROUND: Add 2px top padding when --pad is not used (iOS chroma artifact fix)
             if (!addPadding)
             {
-                return scaled;
+                // Adds minimal transparent padding at top to move content away from edge
+                // where iOS Telegram shows green/purple bands (yuv420p chroma subsampling issue)
+                const int topPadding = 2;
+                if (scaledHeight + topPadding <= targetSize)
+                {
+                    DrawingVisual visual = new DrawingVisual();
+                    using (DrawingContext dc = visual.RenderOpen())
+                    {
+                        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, scaledWidth, scaledHeight + topPadding));
+                        // Draw image offset by topPadding pixels down
+                        dc.DrawImage(scaled, new Rect(0, topPadding, scaledWidth, scaledHeight));
+                    }
+                    RenderTargetBitmap result = new RenderTargetBitmap(scaledWidth, scaledHeight + topPadding, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
+                    result.Render(visual);
+                    return result;
+                }
+                else
+                {
+                    // No room for padding (would exceed targetSize), return as-is
+                    return scaled;
+                }
             }
 
-            // Create a square canvas with transparent background
-            DrawingVisual visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
+            // Full padding mode: center image on square transparent canvas
+            DrawingVisual visual2 = new DrawingVisual();
+            using (DrawingContext dc = visual2.RenderOpen())
             {
                 dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, targetSize, targetSize));
                 // Center the image
@@ -985,9 +1011,9 @@ namespace GifToWebM
                 double offsetY = (targetSize - scaledHeight) / 2.0;
                 dc.DrawImage(scaled, new Rect(offsetX, offsetY, scaledWidth, scaledHeight));
             }
-            RenderTargetBitmap result = new RenderTargetBitmap(targetSize, targetSize, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
-            result.Render(visual);
-            return result;
+            RenderTargetBitmap result2 = new RenderTargetBitmap(targetSize, targetSize, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
+            result2.Render(visual2);
+            return result2;
         }
     }
 }

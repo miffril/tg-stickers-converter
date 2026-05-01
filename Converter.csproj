@@ -68,6 +68,8 @@
     <None Include=".github\copilot-instructions.md" />
     <None Include="App.config" />
     <None Include="CHANGELOG.md" />
+
+
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
