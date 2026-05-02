@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2025-16-12
 
+## [0.6.0] - 2026-05-02
+
+### Added
+- `--allow-speedup` option to accept GIF/MP4/AVIF inputs between 3 and 5 seconds and speed them up to 3 seconds during WebM encoding
+
+### Changed
+- Inputs longer than 3 seconds now stop by default instead of silently trimming video files
+- For 3-5 second inputs, the app now tells the user to use `--allow-speedup` when speedup is available
+- Speedup mode now targets a slightly shorter output duration to stay under 3 seconds without hard trimming looped animations
+- Speedup safety margin is now based on target FPS so final output stays below 3 seconds more reliably
+- Speedup mode now verifies the actual encoded duration and increases acceleration iteratively until the output is at or below 3 seconds
+- The converter no longer waits for a key press before exiting and now reports the final achieved speedup multiplier
+
+### Fixed
+- **[WORKAROUND] iOS chroma artifacts**: Added automatic 2px top padding for non-square videos
+  - **Problem**: Green/purple bands appear at top edge on iOS Telegram due to yuv420p chroma subsampling
+  - **Solution**: Adds 2px transparent padding at top (moves content away from problematic edge)
+  - **When applied**: Only when `--pad` flag is NOT used
+  - **Visibility**: 2px offset is invisible to human eye but sufficient to prevent artifacts
+  - **Limitations**: Does not apply if resulting height would exceed target size
+  - **Why workaround**: Root cause is Telegram's yuv420p requirement + iOS strict decoder
+  - **Tested**: Confirmed to fix artifacts on actual iOS Telegram app
+
+### Added
+- **Separate FPS control parameters**:
+  - `--fps` / `--input-fps`: Controls frame extraction FPS (default: 10, auto-detected for GIF/MP4/AVIF)
+  - `--target-fps` / `--output-fps`: Controls output WebM FPS (default: 30)
+- Improved user feedback: Shows both input and target FPS during conversion
+- Warning message when using non-standard target FPS (not 30)
+
+### Changed
+- **Output WebM now defaults to 30 FPS** (Telegram standard, iOS requirement)
+- FFmpeg command now uses `-r {targetFps}` to enforce output framerate
+- `--fps` parameter is now an alias for `--input-fps` (backward compatible)
+- Updated help text to clarify FPS parameter purposes
+- **ScaleAndPadToSquare behavior**: Now adds 2px top padding by default (when addPadding=false)
+
+### Fixed
+- **Fixed iOS Telegram playback issue**: Videos with 60+ FPS no longer play slower on iOS
+- Videos now maintain correct playback speed regardless of source FPS
+
+## [0.5.0] - 2025-16-12
+
 ### Added
 - **AVIF format support**: Full support for both static and animated AVIF files
   - Multi-stream detection: Automatically identifies animated streams in AVIF containers
