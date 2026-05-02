@@ -1,15 +1,15 @@
 # GifToWebM Converter - AI Agent Instructions
 
 ## Project Overview
-**Purpose**: Create Telegram stickers and emoji with strict platform requirements.
-Single-file console application that converts GIF/MP4/AVIF/PNG sequences to optimized WebM videos. Built on .NET Framework 4.7.2 with WPF for image processing and FFmpeg for video encoding.
+**Purpose**: Create Telegram stickers and emoji with strict platform requirements. Single-file console application that converts GIF/MP4/AVIF/PNG sequences to optimized WebM videos. Built on .NET Framework 4.7.2 with WPF for image processing and FFmpeg for video encoding.
 
 ### Telegram Requirements (Critical)
 - **File size**: Max 256KB (standard), 64KB (emoji mode)
 - **Target FPS**: 30 FPS (Telegram standard - visible issues on iOS if different)
-- **Duration**: Max 3 seconds output (input can be 4s, see Roadmap)
+- **Duration**: Max 3 seconds output
 - **Format**: WebM with VP9 codec + alpha channel (yuva420p)
 - **Real testing**: Only uploading to Telegram reveals actual compatibility
+- **Strict output limit**: Generated MP4/GIF/WebM outputs must not exceed 3.0 seconds, even slightly.
 
 ## Architecture Patterns
 
@@ -59,9 +59,22 @@ fps = gifFrameCount / totalDelay;
 
 **MP4**: Direct extraction, preserve original FPS
 ```csharp
-// Always limit to 3 seconds: -t 3
+// Detect duration with ffprobe first.
+// Without --allow-speedup: reject inputs longer than 3 seconds.
+// With --allow-speedup: allow 3-5 second inputs, extract the whole source,
+// then increase encoding framerate until final output is <= 3.0 seconds.
 ```
-
+### Optional Speedup Workflow (`--allow-speedup`)
+- Default behavior remains strict: inputs longer than 3 seconds are rejected
+- `--allow-speedup` enables GIF/MP4/AVIF inputs between **3 and 5 seconds**
+- Do **not** hard trim final output with `-t 3` because that can break seamless loop animations
+- Instead:
+  1. Extract frames for the full allowed source duration
+  2. Encode with increased input framerate to accelerate playback
+  3. Measure the encoded WebM duration with `ffprobe`
+  4. If output is still `> 3.0s`, increase speedup and re-encode
+  5. Stop when output is `<= 3.0s`
+- Speedup mode should print the final achieved acceleration multiplier to the console
 ### Size Optimization Loop
 WebM encoding uses iterative CRF adjustment:
 ```csharp
@@ -167,7 +180,6 @@ Build via Visual Studio or:
 ```bash
 msbuild Converter.csproj /p:Configuration=Release
 ```
-
 **CI/CD**: Automated builds through Gitea Actions on tag push:
 - Workflow: `.gitea/workflows/build-release.yml`
 - Triggers on: Any tag push (e.g., `git tag v1.0.0 && git push --tags`)
@@ -186,39 +198,25 @@ msbuild Converter.csproj /p:Configuration=Release
 
 ## Key Constraints
 
-1. **3-second maximum**: All video inputs trimmed to first 3 seconds (hardcoded `-t 3`)
+1. **3-second maximum**: Final output must be `<= 3.0` seconds. Prefer acceleration over hard trimming to avoid breaking seamless loop animations.
 2. **Output size limits**: 256KB standard, 64KB emoji mode (enforced via CRF loop)
 3. **WPF required**: Cannot port to .NET Core without replacing WPF imaging APIs
 4. **No async**: All I/O is synchronous (Process.Start → WaitForExit)
-
-## Roadmap Features
-
-### Planned: 4-second Input with Speed Adjustment
-- Accept input videos up to 4 seconds
-- **Only apply speed adjustment if input is between 3-4 seconds**
-  - If input ≤3s: Keep original speed and duration
-  - If input >3s and ≤4s: Speed up to fit into 3 seconds
-- Automatically adjust to target 30 FPS for Telegram compatibility
-- Implementation approach:
-  ```csharp
-  // 1. Detect duration with ffprobe
-  // 2. If duration > 3.0 && duration <= 4.0:
-  //    - Calculate speed multiplier: inputDuration / 3.0
-  //    - Apply setpts filter: -vf "setpts=PTS/{speedMultiplier}"
-  //    - Force output to 30 FPS: -r 30
-  // 3. Else if duration <= 3.0:
-  //    - Extract as-is, no speed adjustment
-  ```
 
 ## Testing Approach
 No unit tests. Manual testing workflow:
 1. Test each format: `Converter.exe -i test.{gif,mp4,avif,png}`
 2. Verify transparency: Load output WebM in browser, check alpha
 3. Check size: `ls -lh output.webm` → must be ≤256KB
-4. Validate FPS: Use MediaInfo or ffprobe on output
+4. Validate FPS and duration: Use MediaInfo or ffprobe on output
 5. **Real validation**: Upload to Telegram as sticker/emoji
    - iOS testing is critical (30 FPS requirement)
    - Desktop/Android more forgiving with FPS mismatches
+
+When testing speedup mode:
+- Verify default behavior rejects 3-5 second inputs without `--allow-speedup`
+- Verify `--allow-speedup` accepts 3-5 second inputs and produces output `<= 3.0s`
+- Prefer checking the final `.webm` duration with `ffprobe`, not only ffmpeg log output
 
 ## Common Pitfalls
 
@@ -229,3 +227,5 @@ No unit tests. Manual testing workflow:
 - **PNG sequence mode**: Requires one `.png` input; scans directory for all PNGs
 - **iOS chroma artifacts**: 2px top padding workaround is permanent - don't remove without iOS testing
 - **Modifying topPadding**: Changing from 2px may make padding visible or insufficient
+- **Do not add `Console.ReadKey()`**: This is a console utility and blocking on exit looks like a hang in manual or automated runs
+- **Do not rely on `-t 3` for final duration enforcement**: Hard trimming can break seamless loops; prefer iterative speedup verification

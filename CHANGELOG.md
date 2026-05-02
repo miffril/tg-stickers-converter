@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--allow-speedup` option to accept GIF/MP4/AVIF inputs between 3 and 5 seconds and speed them up to 3 seconds during WebM encoding
+
+### Changed
+- Inputs longer than 3 seconds now stop by default instead of silently trimming video files
+- For 3-5 second inputs, the app now tells the user to use `--allow-speedup` when speedup is available
+- Speedup mode now targets a slightly shorter output duration to stay under 3 seconds without hard trimming looped animations
+- Speedup safety margin is now based on target FPS so final output stays below 3 seconds more reliably
+- Speedup mode now verifies the actual encoded duration and increases acceleration iteratively until the output is at or below 3 seconds
+- The converter no longer waits for a key press before exiting and now reports the final achieved speedup multiplier
+
 ### Fixed
 - **[WORKAROUND] iOS chroma artifacts**: Added automatic 2px top padding for non-square videos
   - **Problem**: Green/purple bands appear at top edge on iOS Telegram due to yuv420p chroma subsampling

@@ -1,6 +1,6 @@
 # GifToWebM
 
-A simple C# console utility that converts short GIF, MP4, AVIF, or PNG animations (up to 3 seconds) into optimized WebM videos using FFmpeg.
+A simple C# console utility that converts GIF, MP4, AVIF, or PNG animations into optimized WebM videos for Telegram using FFmpeg.
 
 ## Features
 
@@ -17,7 +17,10 @@ A simple C# console utility that converts short GIF, MP4, AVIF, or PNG animation
 - Calculates correct FPS based on GIF timing, AVIF metadata, or uses original FPS for MP4
 - Encodes frames into a VP9 WebM file with alpha channel support (GIF/PNG/AVIF only)
 - Adjusts CRF until output size is under 256 KB (or 64 KB if emoji mode is enabled)
-- **Input video (GIF/MP4/AVIF) is always trimmed to the first 3 seconds**
+- Strict default mode: rejects GIF/MP4/AVIF inputs longer than 3 seconds
+- Optional `--allow-speedup` mode: accepts 3-5 second GIF/MP4/AVIF inputs and accelerates them to fit Telegram's 3-second limit
+- Verifies final output duration and increases speedup iteratively until the result is `<= 3.0` seconds
+- Prints the final achieved speedup multiplier in speedup mode
 
 ## Requirements
 
@@ -47,6 +50,7 @@ Converter.exe [options]
 | `-s`, `--size`       | Target size in pixels for longest side (default: `512`) |
 | `-p`, `--pad`        | Add padding to square canvas (default: disabled)    |
 | `-e`, `--emoji`      | Set target size to 100x100 for emoji output        |
+| `--allow-speedup`    | Allow 3-5 second GIF/MP4/AVIF inputs and speed them up to fit within 3 seconds |
 | `-h`, `--help`       | Show help                                          |
 
 ## Examples
@@ -76,9 +80,19 @@ Convert GIF to WebM with padding to square canvas:
 Converter.exe -i animation.gif --pad
 ```
 
-Convert MP4 to WebM (preserving original FPS, only first 3 seconds, output: video.webm):
+Convert MP4 to WebM (preserving original FPS, output: video.webm):
 ```
 Converter.exe -i video.mp4
+```
+
+Convert a 3-5 second MP4 by accelerating it to fit Telegram's duration limit:
+```
+Converter.exe -i video.mp4 --allow-speedup
+```
+
+Convert a 3-5 second GIF by accelerating it and reporting the final speedup:
+```
+Converter.exe -i animation.gif --allow-speedup
 ```
 
 Convert GIF to 100x100 emoji (output: animation.webm):
@@ -144,6 +158,23 @@ Controls the output WebM framerate:
   - **Lower input FPS** (e.g., 15 → 30): Duplicates frames
   - **Duration remains unchanged**
 
+## Duration Handling
+
+- **Default behavior**: GIF/MP4/AVIF inputs longer than 3 seconds are rejected
+- **Optional speedup behavior**: `--allow-speedup` accepts inputs between **3 and 5 seconds** and accelerates them to fit within Telegram's strict 3-second limit
+- The converter does **not** hard trim final output with `-t 3` because hard trimming can break seamless loop animations
+- In speedup mode, the converter:
+  1. Extracts frames for the full allowed source duration
+  2. Encodes the WebM with a higher input framerate
+  3. Measures the encoded output duration with `ffprobe`
+  4. Re-encodes with more speedup if the result is still longer than 3.0 seconds
+  5. Prints the final achieved speedup multiplier
+
+Example output:
+```
+Final speedup: 1.667x (5.000s -> 3.000s)
+```
+
 ### Example FPS Conversion
 ```bash
 # 60 FPS source → 30 FPS output (standard case)
@@ -168,7 +199,7 @@ The converter fully supports animated AVIF files:
 
 ## Notes
 
-- **Input GIFs, MP4s, and AVIFs longer than 3 seconds will be trimmed to the first 3 seconds.**
+- **Input GIFs, MP4s, and AVIFs longer than 3 seconds are rejected by default. Use `--allow-speedup` for 3-5 second inputs.**
 - **Output videos are always encoded at 30 FPS by default** (Telegram standard, iOS requirement).
 - For MP4 input, the original FPS is detected and used for frame extraction.
 - For AVIF input, FPS is auto-detected from stream metadata.
@@ -180,6 +211,7 @@ The converter fully supports animated AVIF files:
 - The `--blur <value>` option enables border blur with the specified radius. If not set, border is sharp.
 - **Transparency is supported for GIF, PNG, and AVIF input. MP4 input does not support transparency.**
 - **If emoji mode (`-e`) is enabled, the output file size limit is reduced to 64 KB. Otherwise, the limit is 256 KB.**
+- The converter is non-blocking on exit; it does not wait for a key press after finishing.
 
 ## License
 
