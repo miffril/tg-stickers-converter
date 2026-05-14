@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added a GitHub Actions release workflow at `.github/workflows/build-release.yml` that mirrors the existing tag-based Gitea build and release pipeline
+
 ### Changed
 - Standardized comment and documentation wording to a more consistent English style across the source files and project documentation
 - Updated the README with an English project background, maintenance status, and known issues section
