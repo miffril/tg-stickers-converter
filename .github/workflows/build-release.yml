@@ -8,7 +8,7 @@ on:
 env:
   PROJECT_PATH: Converter.csproj
   BUILD_CONFIGURATION: Release
-  BUILD_PLATFORM: Any CPU
+  BUILD_PLATFORM: AnyCPU
 
 jobs:
   build:
