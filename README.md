@@ -10,6 +10,8 @@ To add WEBM stickers (video stickers) to Telegram, you need to create a video st
 
 This project started when I ran into a problem converting transparent GIFs to WEBM while resizing them: artifacts appeared around the image outline because of uneven alpha channel upscaling or downscaling. Over time, I added other features as well.
 
+Why build yet another wheel? Other solutions did not solve all of the problems. One service had one issue, another had a different issue, and some problems were shared across all of them. In every service I saw that used FFmpeg, there was the same problem: artifacts when converting transparent GIFs to WEBM. In almost all services, you also have to manually tweak the size and file weight to fit Telegram because those services were not built specifically for that use case. Sticker bots have the same kinds of problems I ran into, such as the artifact band on iOS for non-square stickers.
+
 ## Project Status
 
 The project is maintained slowly because the main features I needed are already implemented. I do not plan to add new features for now because I do not have many ideas at the moment. If you need something, open a discussion. If there is enough interest, I may add a GUI in the future.
