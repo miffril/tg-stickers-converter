@@ -67,6 +67,7 @@
   <ItemGroup>
     <None Include=".github\copilot-instructions.md" />
     <None Include=".github\workflows\build-release.yml" />
+    <None Include=".github\workflows\ci.yml" />
     <None Include="App.config" />
     <None Include="CHANGELOG.md" />
     <None Include="LICENSE" />

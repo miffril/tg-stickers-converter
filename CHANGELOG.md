@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added a GitHub Actions release workflow at `.github/workflows/build-release.yml` that mirrors the existing tag-based Gitea build and release pipeline
+- Added a GitHub Actions CI workflow at `.github/workflows/ci.yml` to verify the .NET Framework build on pushes to `main` and pull requests
 
 ### Changed
+- Improved the GitHub Actions release workflow with shared build variables, full Git history checkout, artifact upload, and `setup-msbuild@v2`
 - Standardized comment and documentation wording to a more consistent English style across the source files and project documentation
 - Updated the README with an English project background, maintenance status, and known issues section
 - Added a Russian README and language switch links between documentation files

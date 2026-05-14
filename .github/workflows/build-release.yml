@@ -5,6 +5,11 @@ on:
     tags:
       - '*'
 
+env:
+  PROJECT_PATH: Converter.csproj
+  BUILD_CONFIGURATION: Release
+  BUILD_PLATFORM: Any CPU
+
 jobs:
   build:
     runs-on: windows-latest
@@ -12,21 +17,29 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v1.3.1
+        uses: microsoft/setup-msbuild@v2
 
       - name: Restore NuGet packages
-        run: nuget restore Converter.csproj
+        run: nuget restore "${{ env.PROJECT_PATH }}"
 
       - name: Build Solution
-        run: msbuild.exe Converter.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFrameworkVersion=v4.7.2
+        run: msbuild.exe "${{ env.PROJECT_PATH }}" /p:Configuration="${{ env.BUILD_CONFIGURATION }}" /p:Platform="${{ env.BUILD_PLATFORM }}" /p:TargetFrameworkVersion=v4.7.2
 
       - name: Create Zip Archive
         shell: powershell
         run: |
           $tag = "${{ github.ref_name }}"
           Compress-Archive -Path ".\bin\Release\*" -DestinationPath "converter-$tag.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: converter-${{ github.ref_name }}
+          path: converter-${{ github.ref_name }}.zip
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2

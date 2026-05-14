@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+env:
+  PROJECT_PATH: Converter.csproj
+  BUILD_CONFIGURATION: Release
+  BUILD_PLATFORM: Any CPU
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore "${{ env.PROJECT_PATH }}"
+
+      - name: Build Solution
+        run: msbuild.exe "${{ env.PROJECT_PATH }}" /p:Configuration="${{ env.BUILD_CONFIGURATION }}" /p:Platform="${{ env.BUILD_PLATFORM }}" /p:TargetFrameworkVersion=v4.7.2

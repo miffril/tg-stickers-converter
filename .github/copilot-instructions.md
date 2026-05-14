@@ -75,6 +75,7 @@ fps = gifFrameCount / totalDelay;
   4. If output is still `> 3.0s`, increase speedup and re-encode
   5. Stop when output is `<= 3.0s`
 - Speedup mode should print the final achieved acceleration multiplier to the console
+
 ### Size Optimization Loop
 WebM encoding uses iterative CRF adjustment:
 ```csharp
@@ -186,6 +187,7 @@ msbuild Converter.csproj /p:Configuration=Release
 - Output: `converter-{tag}.zip` uploaded to Gitea release
 - Uses Gitea secrets: `TOKEN` (for API access)
 - Uses Gitea variables: `SOLUTION`, `URL` (Gitea instance URL)
+- **CI workflows must also run on the dev branch in addition to main.**
 
 **External dependencies**: None (NuGet packages). Only system assemblies:
 - `PresentationCore`, `PresentationFramework`, `WindowsBase` (WPF)
