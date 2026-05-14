@@ -2,6 +2,8 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
+Скачать последний релиз: [последний релиз](https://github.com/miffril/tg-stickers-converter/releases/latest)
+
 Простая консольная утилита на C# для создания Telegram WEBM-стикеров и эмодзи путем конвертации GIF, MP4, AVIF или PNG-анимаций в оптимизированные WebM-видео с помощью FFmpeg.
 
 Чтобы добавлять WEBM-стикеры (видео-стикеры) в Telegram, нужно создать набор видео-стикеров.

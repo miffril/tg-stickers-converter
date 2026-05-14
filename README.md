@@ -2,6 +2,8 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
+Download the latest release: [latest release](https://github.com/miffril/tg-stickers-converter/releases/latest)
+
 A simple C# console utility that creates Telegram WEBM stickers and emoji by converting GIF, MP4, AVIF, or PNG animations into optimized WebM videos with FFmpeg.
 
 To add WEBM stickers (video stickers) to Telegram, you need to create a video sticker pack.
