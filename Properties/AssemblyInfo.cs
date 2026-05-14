@@ -2,9 +2,8 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-// General Information about an assembly is controlled through the following
-// set of attributes. Change these attribute values to modify the information
-// associated with an assembly.
+// General assembly information is controlled by the following attributes.
+// Change these values to update the metadata associated with the assembly.
 [assembly: AssemblyTitle("Telegram WEBM Sticker Converter")]
 [assembly: AssemblyDescription("GIF/MP4/AVIF/PNG to Telegram WEBM sticker converter")]
 [assembly: AssemblyConfiguration("")]
@@ -14,12 +13,12 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-// Setting ComVisible to false makes the types in this assembly not visible
-// to COM components.  If you need to access a type in this assembly from
-// COM, set the ComVisible attribute to true on that type.
+// Setting ComVisible to false makes the types in this assembly invisible
+// to COM components. If access from COM is required, set the ComVisible
+// attribute to true on the relevant type.
 [assembly: ComVisible(false)]
 
-// The following GUID is for the ID of the typelib if this project is exposed to COM
+// The following GUID is the type library ID if this project is exposed to COM.
 [assembly: Guid("fcf4e5b6-4bb6-4ac0-b282-e5248f7c3ce8")]
 
 // Version information for an assembly consists of the following four values:

@@ -70,6 +70,7 @@
     <None Include="CHANGELOG.md" />
     <None Include="LICENSE" />
     <None Include="README.md" />
+    <None Include="README.ru.md" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ffmpeg.exe">
@@ -91,9 +92,6 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Converter.Tests\Properties\" />
-    <Folder Include="Converter.Tests\TestFiles\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

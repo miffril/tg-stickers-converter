@@ -1,19 +1,39 @@
 # Telegram WEBM Sticker Converter
 
-A simple C# console utility for creating Telegram WEBM stickers and emoji by converting GIF, MP4, AVIF, or PNG animations into optimized WebM videos using FFmpeg.
+[English](README.md) | [Русский](README.ru.md)
+
+A simple C# console utility that creates Telegram WEBM stickers and emoji by converting GIF, MP4, AVIF, or PNG animations into optimized WebM videos with FFmpeg.
+
+To add WEBM stickers (video stickers) to Telegram, you need to create a video sticker pack.
+
+## Project Background
+
+This project started when I ran into a problem converting transparent GIFs to WEBM while resizing them: artifacts appeared around the image outline because of uneven alpha channel upscaling or downscaling. Over time, I added other features as well.
+
+## Project Status
+
+The project is maintained slowly because the main features I needed are already implemented. I do not plan to add new features for now because I do not have many ideas at the moment. If you need something, open a discussion. If there is enough interest, I may add a GUI in the future.
+
+Most major bugs have already been fixed, but I have not tested every edge case, so there are almost certainly still undiscovered issues.
+
+## Known Issues
+
+- GIF FPS is calculated inaccurately when frame delays are uneven, which can make the converted animation look jerky.
+- Emoji FPS can behave strangely. I do not know the exact cause; it looks more like a client-side rendering issue.
+- AVIF support has not been thoroughly tested yet.
 
 ## Features
 
 - Extracts and scales frames from a GIF, MP4, AVIF, or PNG sequence
-- For MP4: automatically detects and preserves the original FPS
-- For AVIF: detects animated streams and auto-calculates FPS from metadata
+- For MP4 input, automatically detects and preserves the original FPS
+- For AVIF input, detects animated streams and automatically calculates FPS from metadata
 - Preserves original image proportions without stretching
 - Allows specifying output frame size in pixels (default: 512px for longest side)
 - Optional padding to square canvas with transparent background
-- Fast emoji mode (-e) for quick 100x100 conversions
+- Fast emoji mode (`-e`) for quick 100x100 conversions
 - Adds optional smooth border with customizable color and size
-- **Supports optional border blur with customizable radius**
-- **Full AVIF support**: multi-stream detection, merges color and alpha channels for transparency
+- **Supports optional border blur with a customizable radius**
+- **Full AVIF support**: multi-stream detection, plus color and alpha channel merging for transparency
 - Calculates correct FPS based on GIF timing, AVIF metadata, or uses original FPS for MP4
 - Encodes frames into a VP9 WebM file with alpha channel support (GIF/PNG/AVIF only)
 - Adjusts CRF until output size is under 256 KB (or 64 KB if emoji mode is enabled)
@@ -26,7 +46,7 @@ A simple C# console utility for creating Telegram WEBM stickers and emoji by con
 
 - .NET Framework 4.7.2 (WPF support required)
 - `ffmpeg.exe` and `ffprobe.exe` must be present in the same directory as the executable
-- **ffmpeg must be built with AVIF support (libaom/libdav1d) for AVIF input**
+- **FFmpeg must be built with AVIF support (libaom/libdav1d) for AVIF input**
 
 ## Usage
 
@@ -38,14 +58,14 @@ Converter.exe [options]
 
 | Option                | Description                                          |
 |----------------------|------------------------------------------------------|
-| `-i`, `--input`      | Input GIF, MP4, AVIF file, or PNG file (for PNG sequence)  |
-| `-o`, `--output`     | Output WebM file (default)           |
+| `-i`, `--input`      | Input GIF, MP4, AVIF, or PNG file (for a PNG sequence) |
+| `-o`, `--output`     | Output WebM file |
 | `-c`, `--crf-step`   | CRF step increment (default: `2`)                   |
 | `-b`, `--border`     | Add border to frames (default: disabled)            |
 | `--border-size`      | Border thickness in pixels (default: `2`)           |
 | `--border-color`     | Border color hex (default: `#FFFFFF`)               |
 | `--blur <value>`     | Border blur radius (integer, required value; default: no blur) |
-| `--fps`, `--input-fps` | Input FPS for frame extraction (default: `10`). Auto-calculated for GIF/MP4/AVIF |
+| `--fps`, `--input-fps` | Input FPS for frame extraction (default: `10`). Automatically calculated for GIF/MP4/AVIF |
 | `--target-fps`, `--output-fps` | Target output FPS for WebM (default: `30`, Telegram standard) |
 | `-s`, `--size`       | Target size in pixels for longest side (default: `512`) |
 | `-p`, `--pad`        | Add padding to square canvas (default: disabled)    |
@@ -137,7 +157,7 @@ Converter.exe --help
 
 ## FPS Handling
 
-The converter now separates **input FPS** (for frame extraction) and **target FPS** (for output):
+The converter separates **input FPS** (for frame extraction) and **target FPS** (for output):
 
 ### Input FPS (`--fps` / `--input-fps`)
 Controls how frames are extracted from the source file:
@@ -149,7 +169,7 @@ Controls how frames are extracted from the source file:
 
 ### Target FPS (`--target-fps` / `--output-fps`)
 Controls the output WebM framerate:
-- **Default: 30 FPS** (Telegram standard)
+- **Default: 30 FPS** (the Telegram standard)
 - **Critical for iOS**: Telegram on iOS strictly requires 30 FPS
   - 60 FPS videos play 2x slower on iOS
   - Other framerates may cause playback issues
@@ -199,12 +219,12 @@ The converter fully supports animated AVIF files:
 
 ## Notes
 
-- **Input GIFs, MP4s, and AVIFs longer than 3 seconds are rejected by default. Use `--allow-speedup` for 3-5 second inputs.**
-- **Output videos are always encoded at 30 FPS by default** (Telegram standard, iOS requirement).
+- **Input GIFs, MP4s, and AVIF files longer than 3 seconds are rejected by default. Use `--allow-speedup` for 3-5 second inputs.**
+- **Output videos are encoded at 30 FPS by default** (the Telegram standard and an iOS requirement).
 - For MP4 input, the original FPS is detected and used for frame extraction.
 - For AVIF input, FPS is auto-detected from stream metadata.
 - Use `--target-fps` to override output FPS (not recommended for Telegram stickers/emoji).
-- **If no output filename is specified, the output file is named after the input file with .webm extension** (e.g., `animation.gif` → `animation.webm`).
+- **If no output file name is specified, the output file is named after the input file with the `.webm` extension** (for example, `animation.gif` → `animation.webm`).
 - Intermediate frames are saved as PNGs in a `frames/` directory (automatically cleaned).
 - The `-s`/`--size` parameter sets the longest side to the specified value, preserving the original aspect ratio.
 - By default, images are scaled to fit the target size without padding. Use `--pad` to center images on a square transparent canvas.

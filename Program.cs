@@ -19,9 +19,12 @@ namespace GifToWebM
     class Program
     {
         [STAThread]
+        /// <summary>
+        /// Parses command-line arguments and runs the conversion pipeline.
+        /// </summary>
         static void Main(string[] args)
         {
-            // Default settings
+            // Default values.
             string inputFile = null;
             InputType inputType = InputType.Unknown;
             string outputVideo = null;
@@ -30,18 +33,18 @@ namespace GifToWebM
             bool addBorder = false;
             int borderSize = 2;
             string borderColorHex = "#FFFFFF";
-            int fps = 10; // Input/intermediate FPS for frame extraction
-            int targetFps = 30; // Output FPS for WebM (Telegram requirement)
+            int fps = 10; // Input FPS used for frame extraction.
+            int targetFps = 30; // Output WebM FPS required by Telegram.
             int targetWidth = 512;
             int targetHeight = 512;
             bool emojiMode = false;
             int blurRadius = 0;
             bool addPadding = false;
             bool allowSpeedup = false;
-            bool userSetFps = false; // Track if user explicitly set input FPS
-            bool userSetTargetFps = false; // Track if user explicitly set target FPS
+            bool userSetFps = false; // Tracks whether the user explicitly set the input FPS.
+            bool userSetTargetFps = false; // Tracks whether the user explicitly set the target FPS.
 
-            // Parse command-line arguments
+            // Parse command-line arguments.
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
@@ -186,7 +189,7 @@ namespace GifToWebM
                 }
             }
 
-            // Determine input type
+            // Determine the input type.
             if (string.IsNullOrEmpty(inputFile))
             {
                 Console.WriteLine("Error: No input file specified.");
@@ -194,7 +197,7 @@ namespace GifToWebM
                 return;
             }
 
-            // Generate output filename if not specified
+            // Generate the output file name if it was not specified.
             if (string.IsNullOrEmpty(outputVideo))
             {
                 string inputFileNameWithoutExtension = Path.GetFileNameWithoutExtension(inputFile);
@@ -227,7 +230,7 @@ namespace GifToWebM
             double inputDuration = 0;
             bool speedupApplied = false;
 
-            // Clear frames directory if it exists and is not empty
+            // Clear the frames directory if it exists and is not empty.
             if (Directory.Exists(framesDir) && Directory.GetFiles(framesDir).Length > 0)
             {
                 DirectoryInfo di = new DirectoryInfo(framesDir);
@@ -253,7 +256,7 @@ namespace GifToWebM
             {
                 if (inputType == InputType.PngSequence)
                 {
-                    // Handle PNG sequence
+                    // Handle a PNG sequence.
                     string directory = Path.GetDirectoryName(Path.GetFullPath(inputFile));
                     framesToProcess = Directory.GetFiles(directory, "*.png");
                     if (framesToProcess.Length == 0)
@@ -267,7 +270,7 @@ namespace GifToWebM
                 }
                 else if (inputType == InputType.VideoFile)
                 {
-                    // Detect FPS and extract frames using ffmpeg
+                    // Detect the FPS and extract frames by using FFmpeg.
                     string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
                     string ffprobePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffprobe.exe");
                     tempFramesDir = Path.Combine(framesDir, "temp");
@@ -275,7 +278,7 @@ namespace GifToWebM
 
                     if (extension == ".gif")
                     {
-                        // Calculate FPS from GIF metadata
+                        // Calculate the FPS from GIF metadata.
                         GifBitmapDecoder decoder;
                         using (FileStream fs = new FileStream(inputFile, FileMode.Open, FileAccess.Read, FileShare.Read))
                         {
@@ -307,7 +310,7 @@ namespace GifToWebM
                         {
                             return;
                         }
-                        // Only calculate FPS if user didn't explicitly set it
+                        // Only calculate the FPS if the user did not explicitly set it.
                         if (!userSetFps)
                         {
                             fps = (int)((totalDelay > 0) ? gifFrameCount / totalDelay : 10);
@@ -321,7 +324,7 @@ namespace GifToWebM
                     }
                     else if (extension == ".mp4")
                     {
-                        // Get FPS and duration from MP4
+                        // Get the FPS and duration from the MP4 file.
                         double duration = 0;
                         int detectedFps = 10;
                         try
@@ -385,15 +388,15 @@ namespace GifToWebM
                     }
                     else if (extension == ".avif")
                     {
-                        // Detect if AVIF is animated using multiple methods
+                        // Detect whether the AVIF file is animated by using multiple methods.
                         int avifFrameCount = 1;
                         double duration = 0;
                         int detectedFps = 10;
-                        int animatedStreamIndex = -1; // Track which stream contains animation
+                        int animatedStreamIndex = -1; // Tracks which stream contains animation.
                         
                         try
                         {
-                            // Get duration first
+                            // Get the duration first.
                             string probeArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
                             using (Process proc = Process.Start(new ProcessStartInfo
                             {
@@ -415,7 +418,7 @@ namespace GifToWebM
                                 }
                             }
                             
-                            // Check all video streams for the one with highest FPS (animated stream)
+                            // Check all video streams and select the one with the highest FPS as the animated stream.
                             string allStreamsArgs = $"-v error -select_streams v -show_entries stream=index,r_frame_rate,nb_frames,nb_read_frames -of csv=p=0 \"{inputFile}\"";
                             using (Process proc = Process.Start(new ProcessStartInfo
                             {
@@ -439,11 +442,11 @@ namespace GifToWebM
                                     string[] parts = stream.Split(',');
                                     if (parts.Length >= 2)
                                     {
-                                        // Parse stream index
+                                        // Parse the stream index.
                                         int streamIdx = -1;
                                         int.TryParse(parts[0], out streamIdx);
                                         
-                                        // Parse FPS
+                                        // Parse the FPS.
                                         string fpsStr = parts[1];
                                         double streamFps = 0;
                                         if (fpsStr.Contains("/"))
@@ -459,14 +462,14 @@ namespace GifToWebM
                                             double.TryParse(fpsStr, out streamFps);
                                         }
                                         
-                                        // Parse frame count if available
+                                        // Parse the frame count if it is available.
                                         int streamFrames = 0;
                                         if (parts.Length >= 3)
                                             int.TryParse(parts[2], out streamFrames);
                                         if (parts.Length >= 4 && streamFrames == 0)
                                             int.TryParse(parts[3], out streamFrames);
                                         
-                                        // Select stream with highest FPS or frame count
+                                        // Select the stream with the highest FPS or frame count.
                                         if (streamFps > maxFps || (streamFps == maxFps && streamFrames > maxFrames))
                                         {
                                             maxFps = streamFps;
@@ -487,14 +490,14 @@ namespace GifToWebM
                                 }
                             }
                             
-                            // If we have duration but no frame count, calculate it
+                            // If a duration is available but the frame count is not, calculate it.
                             if (duration > 0.1 && avifFrameCount == 1 && detectedFps > 1)
                             {
                                 avifFrameCount = (int)Math.Round(duration * detectedFps);
                                 Console.WriteLine($"Calculated {avifFrameCount} frames from duration and FPS");
                             }
                             
-                            // If duration > 0, assume it's animated
+                            // If the duration is greater than zero, treat the file as animated.
                             if (duration > 0.1 && avifFrameCount == 1)
                             {
                                 Console.WriteLine("AVIF has duration > 0, treating as animated");
@@ -516,14 +519,14 @@ namespace GifToWebM
                         Console.WriteLine($"AVIF processing: {avifFrameCount} frames, {fps} FPS, {duration:F2}s duration, stream index: {animatedStreamIndex}");
                         hasAlpha = true;
                         
-                        // Store animated stream index for extraction
+                        // Store the animated stream index for extraction.
                         if (animatedStreamIndex >= 0)
                         {
                             tempFramesDir = $"{Path.Combine(framesDir, "temp")}|{animatedStreamIndex}";
                         }
                     }
 
-                    // Extract frames using ffmpeg
+                    // Extract frames by using FFmpeg.
                     string extractionDurationArg = GetExtractionDurationArgument(inputDuration, speedupApplied);
                     string extractCmd;
                     if (extension == ".gif")
@@ -536,7 +539,7 @@ namespace GifToWebM
                     }
                     else // AVIF
                     {
-                        // Extract stream index if stored in tempFramesDir
+                        // Extract the stream index if it was stored in tempFramesDir.
                         string actualTempDir = tempFramesDir;
                         int colorStreamIdx = -1;
                         int alphaStreamIdx = -1;
@@ -548,13 +551,13 @@ namespace GifToWebM
                             if (parts.Length > 1 && int.TryParse(parts[1], out int streamIdx))
                             {
                                 colorStreamIdx = streamIdx;
-                                // Alpha stream is typically color stream + 1 in AVIF
+                                // In AVIF, the alpha stream is typically the color stream index plus one.
                                 alphaStreamIdx = streamIdx + 1;
                                 Console.WriteLine($"Using color stream: {colorStreamIdx}, alpha stream: {alphaStreamIdx}");
                             }
                         }
                         
-                        // Recreate temp directory with correct path
+                        // Recreate the temporary directory by using the correct path.
                         if (actualTempDir != tempFramesDir)
                         {
                             tempFramesDir = actualTempDir;
@@ -563,17 +566,17 @@ namespace GifToWebM
                             Directory.CreateDirectory(tempFramesDir);
                         }
                         
-                        // For AVIF with alpha, we need to use alpha extraction filter
-                        // AVIF stores color and alpha as separate streams that need to be combined
+                        // For AVIF with alpha, use an extraction filter.
+                        // AVIF stores color and alpha as separate streams that must be combined.
                         if (colorStreamIdx >= 0 && alphaStreamIdx >= 0)
                         {
-                            // Use alphamerge filter to combine color and alpha streams
-                            // Limit to allowed duration and use proper frame rate control
+                            // Use the alphamerge filter to combine the color and alpha streams.
+                            // Limit extraction to the allowed duration and use explicit frame-rate control.
                             extractCmd = $"-y -i \"{inputFile}\" -t {extractionDurationArg} -filter_complex \"[0:{colorStreamIdx}][0:{alphaStreamIdx}]alphamerge[out]\" -map \"[out]\" -r {fps} -pix_fmt rgba \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                         }
                         else
                         {
-                            // Fallback: try default extraction with the allowed duration
+                            // Fallback: use default extraction with the allowed duration.
                             extractCmd = $"-y -i \"{inputFile}\" -t {extractionDurationArg} -r {fps} -pix_fmt rgba \"{Path.Combine(tempFramesDir, "frame_%03d.png")}\"";
                         }
                     }
@@ -599,14 +602,14 @@ namespace GifToWebM
                     Array.Sort(framesToProcess);
                     frameCount = framesToProcess.Length;
                     
-                    // For AVIF, recalculate FPS based on actual extracted frames
+                    // For AVIF, recalculate the FPS from the actual extracted frame count.
                     if (extension == ".avif" && frameCount > 1)
                     {
-                        // If we got more frames than expected, recalculate FPS
+                        // If more frames were extracted than expected, recalculate the FPS.
                         Console.WriteLine($"Extracted {frameCount} frames from AVIF");
                         if (frameCount > 1)
                         {
-                            // Try to get more accurate duration if available
+                            // Try to get a more accurate duration if it is available.
                             try
                             {
                                 string durationArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
@@ -636,11 +639,11 @@ namespace GifToWebM
                     Console.WriteLine($"Processing {frameCount} extracted frames...");
                 }
 
-                // Process frames using WPF imaging (preserves quality with alpha channel)
-                // WORKAROUND: ScaleAndPadToSquare adds 2px top padding by default to fix iOS chroma artifacts
+                // Process frames by using WPF imaging to preserve alpha quality.
+                // Workaround: ScaleAndPadToSquare adds 2 px of top padding by default to reduce iOS chroma artifacts.
                 ProcessFrames(framesToProcess, framesDir, hasAlpha, targetWidth, addPadding, addBorder, borderSize, borderColorHex, blurRadius);
 
-                // Cleanup temporary directory
+                // Clean up the temporary directory.
                 if (tempFramesDir != null)
                 {
                     GC.Collect();
@@ -665,7 +668,7 @@ namespace GifToWebM
                 return;
             }
 
-            // Build ffmpeg command
+            // Build the FFmpeg command.
             const double telegramMaxDurationSeconds = 3.0;
             const int maxSpeedupAttempts = 5;
             string ffmpegPathForVideo = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
@@ -680,7 +683,7 @@ namespace GifToWebM
                 Console.WriteLine($"Applying speedup: {inputDuration:F2}s -> {targetDurationSeconds:F2}s (encoding FPS: {encodingInputFps:F3}).");
             }
 
-            // Inform user about FPS settings
+            // Report the FPS settings.
             Console.WriteLine($"Input FPS: {fps}, Encoding FPS: {encodingInputFps.ToString("0.###", CultureInfo.InvariantCulture)}, Target output FPS: {targetFps}");
             if (targetFps != 30 && userSetTargetFps)
             {
@@ -758,7 +761,10 @@ namespace GifToWebM
 
             Console.WriteLine("Video created: " + outputVideo);
         }
-
+        
+        /// <summary>
+        /// Processes source frames, applies scaling and optional effects, and saves them as PNG files.
+        /// </summary>
         static void ProcessFrames(string[] sourceFrames, string outputDir, bool hasAlpha, int targetSize, bool addPadding, bool addBorder, int borderSize, string borderColorHex, int blurRadius)
         {
             for (int i = 0; i < sourceFrames.Length; i++)
@@ -811,7 +817,7 @@ namespace GifToWebM
         }
 
         /// <summary>
-        /// Checks if a BitmapSource is completely black.
+        /// Determines whether the specified <see cref="BitmapSource"/> is completely black.
         /// </summary>
         static bool IsBlackFrame(BitmapSource bitmap)
         {
@@ -832,9 +838,9 @@ namespace GifToWebM
         }
 
         /// <summary>
-        /// Adds a smooth white border to a BitmapSource while preserving transparency.
+        /// Adds a smooth border to a <see cref="BitmapSource"/> while preserving transparency.
         /// The method dilates the alpha channel, computes the border mask,
-        /// applies a box blur to smooth the mask, and composites the original image over the border.
+        /// optionally applies a box blur to smooth the mask, and composites the original image over the border.
         /// </summary>
         static TransformedBitmap AddBorder(BitmapSource bitmap, int borderSize, string borderColorHex, int blurRadius = 0)
         {
@@ -845,7 +851,7 @@ namespace GifToWebM
             byte[] pixels = new byte[height * stride];
             bitmap.CopyPixels(pixels, stride, 0);
 
-            // Save original alpha channel
+            // Save the original alpha channel.
             byte[] origAlpha = new byte[width * height];
             for (int y = 0; y < height; y++)
             {
@@ -856,7 +862,7 @@ namespace GifToWebM
                 }
             }
 
-            // Dilate the alpha channel with radius = borderSize
+            // Dilate the alpha channel by using borderSize as the radius.
             byte[] dilatedAlpha = new byte[width * height];
             for (int y = 0; y < height; y++)
             {
@@ -881,7 +887,7 @@ namespace GifToWebM
                 }
             }
 
-            // Compute border mask as the difference between dilated alpha and original alpha
+            // Compute the border mask as the difference between the dilated alpha and the original alpha.
             byte[] borderMask = new byte[width * height];
             for (int i = 0; i < width * height; i++)
             {
@@ -889,7 +895,7 @@ namespace GifToWebM
                 borderMask[i] = (byte)(diff < 0 ? 0 : diff);
             }
 
-            // Apply blur if blurRadius > 0
+            // Apply a blur if blurRadius is greater than zero.
             byte[] finalMask = borderMask;
             if (blurRadius > 0)
             {
@@ -919,7 +925,7 @@ namespace GifToWebM
                 finalMask = blurredMask;
             }
 
-            // Create border image with the specified color and mask as alpha
+            // Create a border image by using the specified color and the mask as alpha.
             Color borderColor = (Color)ColorConverter.ConvertFromString(borderColorHex);
             byte[] borderPixels = new byte[height * stride];
             for (int y = 0; y < height; y++)
@@ -934,7 +940,7 @@ namespace GifToWebM
                 }
             }
 
-            // Composite original image over the border using alpha composition
+            // Composite the original image over the border by using alpha composition.
             byte[] outputPixels = new byte[height * stride];
             for (int y = 0; y < height; y++)
             {
@@ -951,7 +957,7 @@ namespace GifToWebM
                     byte borderR = borderPixels[idx + 2];
                     byte borderA = borderPixels[idx + 3];
 
-                    // Alpha composition: result = original + border*(1 - original alpha)
+                    // Alpha composition: result = original + border * (1 - original alpha).
                     float alphaOrig = origA / 255f;
                     float alphaBorder = borderA / 255f;
                     float outA = alphaOrig + alphaBorder * (1 - alphaOrig);
@@ -971,7 +977,7 @@ namespace GifToWebM
         }
 
         /// <summary>
-        /// Saves a BitmapSource as a PNG file.
+        /// Saves the specified <see cref="BitmapSource"/> as a PNG file.
         /// </summary>
         static void SavePng(BitmapSource bitmap, string filename)
         {
@@ -1008,6 +1014,9 @@ namespace GifToWebM
             Console.WriteLine("  -h, --help               Display this help message");
         }
 
+        /// <summary>
+        /// Validates the input duration against Telegram limits and determines whether speedup should be applied.
+        /// </summary>
         static bool ValidateInputDuration(string inputLabel, double duration, bool allowSpeedup, out bool speedupApplied)
         {
             speedupApplied = false;
@@ -1044,6 +1053,9 @@ namespace GifToWebM
             return false;
         }
 
+        /// <summary>
+        /// Returns the FFmpeg extraction duration argument for the current input.
+        /// </summary>
         static string GetExtractionDurationArgument(double inputDuration, bool speedupApplied)
         {
             double extractionDuration = inputDuration > 0
@@ -1053,6 +1065,9 @@ namespace GifToWebM
             return extractionDuration.ToString("0.###", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Gets the media duration by using FFprobe.
+        /// </summary>
         static double GetMediaDuration(string ffprobePath, string mediaPath)
         {
             try
@@ -1085,31 +1100,31 @@ namespace GifToWebM
         }
 
         /// <summary>
-        /// Scales and optionally pads a BitmapSource to fit within targetSize while preserving aspect ratio.
+        /// Scales and optionally pads a <see cref="BitmapSource"/> to fit within the target size while preserving the aspect ratio.
         /// </summary>
         /// <remarks>
-        /// WORKAROUND for iOS chroma artifacts: When addPadding=false, adds 2px transparent padding at top.
-        /// This moves content away from the top edge where iOS Telegram shows green/purple chroma artifacts
-        /// due to yuv420p subsampling. The 2px offset is invisible but sufficient to prevent artifacts.
+        /// Workaround for iOS chroma artifacts: when addPadding is false, the method adds 2 px of transparent padding at the top.
+        /// This moves content away from the top edge where Telegram on iOS can show green or purple chroma artifacts
+        /// caused by yuv420p subsampling. The 2 px offset is visually negligible but sufficient to prevent artifacts.
         /// </remarks>
         static BitmapSource ScaleAndPadToSquare(BitmapSource source, int targetSize, bool addPadding = false)
         {
             int srcWidth = source.PixelWidth;
             int srcHeight = source.PixelHeight;
 
-            // Calculate scale so that the larger dimension equals targetSize
+            // Calculate the scale so that the larger dimension matches targetSize.
             double scale = (double)targetSize / Math.Max(srcWidth, srcHeight);
             int scaledWidth = (int)Math.Round(srcWidth * scale);
             int scaledHeight = (int)Math.Round(srcHeight * scale);
 
-            // Scale the image proportionally
+            // Scale the image proportionally.
             TransformedBitmap scaled = new TransformedBitmap(source, new ScaleTransform(scale, scale));
 
-            // WORKAROUND: Add 2px top padding when --pad is not used (iOS chroma artifact fix)
+            // Workaround: add 2 px of top padding when --pad is not used to reduce iOS chroma artifacts.
             if (!addPadding)
             {
-                // Adds minimal transparent padding at top to move content away from edge
-                // where iOS Telegram shows green/purple bands (yuv420p chroma subsampling issue)
+                // Add minimal transparent padding at the top to move content away from the edge
+                // where Telegram on iOS can show green or purple bands because of yuv420p chroma subsampling.
                 const int topPadding = 2;
                 if (scaledHeight + topPadding <= targetSize)
                 {
@@ -1117,7 +1132,7 @@ namespace GifToWebM
                     using (DrawingContext dc = visual.RenderOpen())
                     {
                         dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, scaledWidth, scaledHeight + topPadding));
-                        // Draw image offset by topPadding pixels down
+                        // Draw the image with a topPadding-pixel downward offset.
                         dc.DrawImage(scaled, new Rect(0, topPadding, scaledWidth, scaledHeight));
                     }
                     RenderTargetBitmap result = new RenderTargetBitmap(scaledWidth, scaledHeight + topPadding, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
@@ -1126,17 +1141,17 @@ namespace GifToWebM
                 }
                 else
                 {
-                    // No room for padding (would exceed targetSize), return as-is
+                    // There is no room for padding because it would exceed targetSize, so return the scaled image.
                     return scaled;
                 }
             }
 
-            // Full padding mode: center image on square transparent canvas
+            // Full padding mode: center the image on a square transparent canvas.
             DrawingVisual visual2 = new DrawingVisual();
             using (DrawingContext dc = visual2.RenderOpen())
             {
                 dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, targetSize, targetSize));
-                // Center the image
+                // Center the image.
                 double offsetX = (targetSize - scaledWidth) / 2.0;
                 double offsetY = (targetSize - scaledHeight) / 2.0;
                 dc.DrawImage(scaled, new Rect(offsetX, offsetY, scaledWidth, scaledHeight));
