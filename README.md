@@ -1,6 +1,6 @@
-# GifToWebM
+# Telegram WEBM Sticker Converter
 
-A simple C# console utility that converts GIF, MP4, AVIF, or PNG animations into optimized WebM videos for Telegram using FFmpeg.
+A simple C# console utility for creating Telegram WEBM stickers and emoji by converting GIF, MP4, AVIF, or PNG animations into optimized WebM videos using FFmpeg.
 
 ## Features
 
@@ -215,4 +215,4 @@ The converter fully supports animated AVIF files:
 
 ## License
 
-MIT License
+This project is licensed under the MIT License. See the `LICENSE` file for details.

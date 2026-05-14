@@ -1,4 +1,4 @@
-# GifToWebM Converter - AI Agent Instructions
+# Telegram WEBM Sticker Converter - AI Agent Instructions
 
 ## Project Overview
 **Purpose**: Create Telegram stickers and emoji with strict platform requirements. Single-file console application that converts GIF/MP4/AVIF/PNG sequences to optimized WebM videos. Built on .NET Framework 4.7.2 with WPF for image processing and FFmpeg for video encoding.

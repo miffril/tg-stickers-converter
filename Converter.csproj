@@ -68,8 +68,7 @@
     <None Include=".github\copilot-instructions.md" />
     <None Include="App.config" />
     <None Include="CHANGELOG.md" />
-
-
+    <None Include="LICENSE" />
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
@@ -91,6 +90,10 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Converter.Tests\Properties\" />
+    <Folder Include="Converter.Tests\TestFiles\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
