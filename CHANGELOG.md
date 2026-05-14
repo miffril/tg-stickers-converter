@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the README with an English project background, maintenance status, and known issues section
 - Added a Russian README and language switch links between documentation files
 - Added an AVIF testing disclaimer to the English and Russian README files
+- Readmme now copying to output directory on build for easier access
 
 ## [0.6.0] - 2026-05-02
 

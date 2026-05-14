@@ -69,8 +69,12 @@
     <None Include="App.config" />
     <None Include="CHANGELOG.md" />
     <None Include="LICENSE" />
-    <None Include="README.md" />
-    <None Include="README.ru.md" />
+    <None Include="README.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="README.ru.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Content Include="ffmpeg.exe">
